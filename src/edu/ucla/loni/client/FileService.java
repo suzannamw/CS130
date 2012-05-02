@@ -15,10 +15,16 @@ public interface FileService extends RemoteService {
 	Pipefile 	getFile(String filename);
 	
 	void 		updateFile(Pipefile pipe);
-	void		removeFile(String filenames[]);
-	void 		copyFile(String[] filenames, String folder);
-	void 		moveFile(String[] filenames, String folder);
+	
+	void		removeFile(String filename);
+	void		removeFiles(String filenames[]);
+	
+	void 		copyFile(String filename, String packageName);
+	void 		copyFiles(String[] filenames, String packageName);
+	
+	void 		moveFile(String filename, String packageName);
+	void 		moveFiles(String[] filenames, String packageName);
 	
 	Group[]		getGroups();
-	void		updateGroup(Group g);
+	void		updateGroup(Group g);	
 }

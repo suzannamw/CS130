@@ -1,7 +1,6 @@
 package edu.ucla.loni.server;
 
 import java.io.File;
-import java.io.FileFilter;
 
 import edu.ucla.loni.client.FileService;
 import edu.ucla.loni.shared.FileTree;
@@ -14,7 +13,10 @@ import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 @SuppressWarnings("serial")
 public class FileServiceImpl extends RemoteServiceServlet implements FileService {
 	/**
-	 *  Tree operations
+	 *  Returns a FileTree that represents the root directory
+	 *  <br>
+	 *  Thus the children are the packages
+	 *  @param root the absolute path of the root directory
 	 */
 	public FileTree getPackageTree(String root) {
 		File rootFolder = new File(root);
@@ -22,62 +24,160 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		if (rootFolder.exists() && rootFolder.isDirectory()){
 			return buildFileTree(rootFolder);
 		} else {
-			FileTree ret = new FileTree();
-			ret.name = "Root directory does not exist or is not a directory";
-			return ret;
+			return null;
 		}
 	}
 	
+	/**
+	 *  Returns a FileTree where the children are all files and are the search results
+	 *  @param root the absolute path of the root directory
+	 *  @param query what the user is searching for
+	 */
 	public FileTree getSearchResults(String root, String query){
 		// TODO
+		// Call database to get results
+		// Change to proper format
 		return null;
 	}
 	
 	/**
-	 *  File operations
+	 *  Retrieves a file from the serv stores it as a pipefile
+	 *  @param filename absolute path of the file
+	 *  @return a Pipefile if the file is found or null
 	 */
 	public Pipefile getFile(String filename){
 		// TODO
+		// If file exists
+		//    create pipefile
+		//    set filename
+		//    set xml to contents of the file
+		//    set the accessRestrictions to those retrieved from the database
+		//    return the pipefile
+		// Else
+		//    return null
 		return null;
 	}
 	
+	/**
+	 *  Updates the file on the server
+	 *  @param pipe Pipefile representing the updated file
+	 */
 	public void updateFile(Pipefile pipe){
 		// TODO
-		return;
-	}
-	
-	public void removeFile(String filenames[]){
-		// TODO
-		return;
-	}
-	
-	public void copyFile(String[] filenames, String folder){
-		// TODO
-		return;
-	}
-	
-	public void moveFile(String[] filenames, String folder){
-		// TODO
+		// Read the filename
+		//   If the file exists
+		//      set the contents of the file to xml
+		//      if the package changed update the name, call move file
+		//      update the row corresponding to this file in the database
+		//      rewrite the restictions file
+		//   Else
+		//      return
 		return;
 	}
 	
 	/**
-	 *  Group operations
+	 *  Removes a file from the server
+	 *  @param filename absolute path of the file
+	 */
+	public void removeFile(String Filename) {
+		// TODO
+		// If the file exists
+		//   delete the file
+		//   delete the row corresponding to this file in the database
+		//   update access restrictions file
+		return;
+	}
+	
+	/**
+	 *  Removes files from the server
+	 *  @param filenames absolute paths of the files
+	 */
+	public void removeFiles(String filenames[]){
+		// TODO
+		// For each filename
+		//   Call removeFile
+		return;
+	}
+	
+	/**
+	 *  Copy a file from the server to the proper package
+	 *  @param filename absolute path of the file
+	 *  @param packageName absolute path of the package
+	 */
+	public void copyFile(String filename, String packageName){
+		// TODO
+		// If the file exists
+		//   Copy the file to the new destination (use updateFilenameForPackage)
+		//   Modify the file at its new destination to update the package
+		//   Insert a row corresponding to this file in the database
+		return;	
+	}
+	
+	/**
+	 *  Copies files from the server to the proper package
+	 *  @param filenames absolute paths of the files
+	 *  @param packageName absolute path of the package
+	 */
+	public void copyFiles(String[] filenames, String packageName){
+		// TODO
+		// For each filename
+		//   Call copyFile
+		return;
+	}
+	
+	/**
+	 *  Move a file from the server to the proper package
+	 *  @param filename absolute path of the file
+	 *  @param packageName absolute path of the package
+	 */
+	public void moveFile(String filenames, String packageName){
+		// TODO
+		// Call copyFile
+		// Call removeFile
+		return;
+	}
+	
+	/**
+	 *  Moves files from the server to the proper package
+	 *  @param filenames absolute paths of the files
+	 *  @param packageName absolute path of the package
+	 */
+	public void moveFiles(String[] filenames, String packageName){
+		// TODO
+		// For each filename
+		//   Call moveFile
+		return;
+	}
+	
+	/**
+	 *  Returns an array of all the groups
 	 */
 	public Group[] getGroups(){
 		// TODO
+		// Call the database for a list of groups
+		// Convert to proper format
 		return null;
 	}
 	
-	public void	updateGroup(Group g){
+	/**
+	 *  Updates a group on the server
+	 *  @param group group to be updated
+	 */
+	public void	updateGroup(Group group){
 		// TODO
+		// Update the row in the database corresponding to this group
 		return;
 	}
 	
-	/**
-	 *  Private methods
-	 */
+	////////////////////////////////////////////////////////////
+	// Private Methods
+	////////////////////////////////////////////////////////////
 	
+	/**
+	 *  Builds a Filetree from a specific folder
+	 *  @param folder
+	 *  @return FileTree for the particular folder
+	 */
 	private FileTree buildFileTree(File folder){
 		// Get the children
 		File[] files = folder.listFiles();
@@ -117,5 +217,12 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		}
 		
 		return ret;
+	}
+	
+	private String updateFilenameForPackage(String filename, String Package){
+		// Ex: Filename = C:\Users\charlie\Desktop\PipelineRoot1\AAL\Data\AAL_Atlas.data
+		//     Package = AFNI
+		// 	   Return value = C:\Users\charlie\Desktop\PipelineRoot1\AFNI\Data\AAL_Atlas.data
+		return "";
 	}
 }

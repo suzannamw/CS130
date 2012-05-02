@@ -1,6 +1,14 @@
-h1 {
+.title {
   font-size: 2em;
   font-weight: bold;
   text-align: center;
-  margin: 5px;
+  margin: 10px;
+}
+
+.header {
+	border-bottom: 5px solid gray;
+}
+
+.root-dir{
+	font-size: 1.1em;
 }
