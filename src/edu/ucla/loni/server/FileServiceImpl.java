@@ -5,7 +5,6 @@ import java.io.File;
 import edu.ucla.loni.client.FileService;
 import edu.ucla.loni.shared.FileTree;
 import edu.ucla.loni.shared.Group;
-import edu.ucla.loni.shared.ModuleType;
 import edu.ucla.loni.shared.Pipefile;
 
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
@@ -202,13 +201,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				
 				// TODO
 				// Query the database for the row about this file
-				// If a row exists and its data is valid (compare date modified)
-				//   set the moduleType to what is in the database
-				// Else 
+				// If a does not exist or the data is invalid (compare date modified)
 				//   Read the file, determine the module type
 				//   Update the database
-				//   Set the moduleType
-				child.type = ModuleType.DATA; 
 				
 				ret.children[index] = child;
 			}

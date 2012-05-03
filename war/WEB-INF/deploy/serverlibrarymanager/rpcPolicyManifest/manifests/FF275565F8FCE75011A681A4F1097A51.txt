@@ -1,2 +1,0 @@
-serviceClass: edu.ucla.loni.client.FileService
-path: 62612FC14325281C204C70198BCAA00E.gwt.rpc

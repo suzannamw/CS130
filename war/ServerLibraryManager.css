@@ -1,7 +1,6 @@
 .title {
   font-size: 2em;
   font-weight: bold;
-  text-align: center;
   margin: 10px;
 }
 
@@ -12,3 +11,23 @@
 .root-dir{
 	font-size: 1.1em;
 }
+
+.workarea-title{
+	font-size: 1.5em;
+}
+
+.workarea-subtitle {
+	font-size: 1.2em;
+	padding-bottom: 3px;
+}
+
+.workarea-instructions {
+	font-size: 1.1em;
+	color: gray;
+	padding-left: 5px;
+}
+
+.workarea-selectedFile {
+	padding-left: 10px;
+}
+

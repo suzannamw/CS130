@@ -1,8 +1,9 @@
 package edu.ucla.loni.client;
 
+import java.util.LinkedHashMap;
+
 import edu.ucla.loni.shared.FileTree;
 import edu.ucla.loni.shared.Group;
-import edu.ucla.loni.shared.ModuleType;
 import edu.ucla.loni.shared.Pipefile;
 
 import com.google.gwt.core.client.EntryPoint;
@@ -18,12 +19,14 @@ import com.smartgwt.client.widgets.events.ClickHandler;
 import com.smartgwt.client.widgets.Button;
 import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
+import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
 import com.smartgwt.client.widgets.form.fields.FormItem;
 import com.smartgwt.client.widgets.form.fields.TextItem;
 import com.smartgwt.client.widgets.form.fields.events.ChangedEvent;
 import com.smartgwt.client.widgets.form.fields.events.ChangedHandler;
 import com.smartgwt.client.widgets.form.fields.events.KeyUpEvent;
 import com.smartgwt.client.widgets.form.fields.events.KeyUpHandler;
+import com.smartgwt.client.widgets.grid.ListGridRecord;
 import com.smartgwt.client.widgets.layout.HLayout;
 import com.smartgwt.client.widgets.layout.VLayout;
 import com.smartgwt.client.widgets.tab.Tab;
@@ -58,33 +61,83 @@ public class ServerLibraryManager implements EntryPoint {
 	private String rootDirectory = rootDirectoryDefault;
 	
 	/**
+	 *   Current Packages
+	 */
+	private final LinkedHashMap<String, String> currentPackages = new LinkedHashMap<String,String>();
+	
+	/**
+	 *   Current Selected Files
+	 */
+	private String[] currentSelectedFiles;
+	
+	/**
+	 *   Current Pipefile
+	 */
+	private Pipefile currentPipefile;
+	
+	/**
+	 *   Current Groups
+	 */
+	private Group[] currentGroups;
+	
+	/**
+	 *   Package Tree
+	 */
+	private final Tree packageTree = new Tree();
+	
+	/**
+	 *   Module Tree
+	 */
+	private final Tree moduleTree = new Tree();
+	
+	/**
+	 *   Results Tree
+	 */
+	private final Tree resultsTree = new Tree();
+	
+	/**
+	 *   Workarea
+	 */
+	private final VLayout workarea = new VLayout();
+	
+	/**
 	 *   NodeClickHandler for when a pipefile is selected within a tree
 	 */
 	private NodeClickHandler selectPipefileHandler = new NodeClickHandler() {
 		public void onNodeClick(NodeClickEvent event){
+			TreeGrid grid = event.getViewer();
+			Tree tree = grid.getData();
 			TreeNode clicked = event.getNode();
-			viewFile(clicked.getAttribute("fullPath"));
+			
+			boolean folder = tree.isFolder(clicked);
+			
+			if (folder){
+				// Be sure the folder is open			
+				tree.openAll(clicked);
+				// Deselect the folder
+				grid.deselectRecord(clicked);
+				// Select all the leaves
+				grid.selectRecords(tree.getDescendantLeaves(clicked));
+				
+			}
+			
+			ListGridRecord[] selected = grid.getSelectedRecords();
+			int numSelected = selected.length;
+			if (numSelected == 0){
+				basicInstructions();
+			}
+			else if (numSelected == 1 && !folder){
+				viewFile(clicked.getAttribute("fullPath"));
+			}
+			else {
+				currentSelectedFiles = new String[selected.length];
+				for (int i = 0; i < selected.length; i++){
+					currentSelectedFiles[i] = selected[i].getAttribute("fullPath");
+				}
+				fileOperations(currentSelectedFiles);
+			}
 		}
 	};
-	
-	// Trees Variables
-	private final Tree packageTree = new Tree();
-	
-	private final Tree moduleTree = new Tree();
-	private final TreeNode moduleTree_data = new TreeNode("Data");
-	private final TreeNode moduleTree_modules = new TreeNode("Modules");
-	private final TreeNode moduleTree_workflows = new TreeNode("Workflows");
-	
-	private final Tree resultsTree = new Tree();
-	
-	// Workarea that will be updated
-	private final VLayout workarea = new VLayout();
-	
-	// Current Pipefile
-	private Pipefile currentPipefile;
-	
-	// Groups Array
-	private Group[] currentGroups;
 
 	////////////////////////////////////////////////////////////
 	// On Module Load
@@ -155,14 +208,6 @@ public class ServerLibraryManager implements EntryPoint {
 	    moduleTree.setRoot(moduleRoot);
 	    moduleTree.setShowRoot(false);
 	    
-	    moduleTree_data.setIsFolder(true);
-	    moduleTree_modules.setIsFolder(true);
-	    moduleTree_workflows.setIsFolder(true);
-	    
-	    moduleTree.add(moduleTree_data, moduleRoot);
-	    moduleTree.add(moduleTree_modules, moduleRoot);
-	    moduleTree.add(moduleTree_workflows, moduleRoot);
-	    
 	    TreeGrid moduleTreeGrid = new TreeGrid();
 	    moduleTreeGrid.setData(moduleTree);
 	    moduleTreeGrid.setShowConnectors(true);
@@ -214,7 +259,7 @@ public class ServerLibraryManager implements EntryPoint {
 	    left.setWidth(300);
 	    left.setMinWidth(300);
 	    left.setMaxWidth(600);
-	    left.setLayoutAlign(Alignment.CENTER);
+	    left.setAlign(Alignment.CENTER);
 	    
 	    rootDirectoryView(left);
 	    left.addMember(treeTabs); 
@@ -247,9 +292,7 @@ public class ServerLibraryManager implements EntryPoint {
 	private void treeRefresh(){
 		// Clear packageTree and moduleTree
 		packageTree.removeList(packageTree.getDescendants());
-		moduleTree.removeList(moduleTree.getDescendants(moduleTree_data));
-		moduleTree.removeList(moduleTree.getDescendants(moduleTree_modules));
-		moduleTree.removeList(moduleTree.getDescendants(moduleTree_workflows));
+		moduleTree.removeList(moduleTree.getDescendants());
 		
 	    // Update Trees
 		fileServer.getPackageTree(
@@ -263,6 +306,7 @@ public class ServerLibraryManager implements EntryPoint {
 		    	    if (result != null && result.children != null){
 			    	    for(FileTree folder: result.children){
 			    		    treeParse(folder, packageTree.getRoot());
+			    		    currentPackages.put(folder.fullPath, folder.name);
 			    	    }
 		    	    }
 		        }
@@ -276,7 +320,6 @@ public class ServerLibraryManager implements EntryPoint {
 	private void treeParse(FileTree file, TreeNode parent){
 		TreeNode branch = new TreeNode(file.name);
 		branch.setAttribute("fullPath", file.fullPath);
-		branch.setAttribute("moduleType", file.type);
 		
 		// Add to packageTree
 		packageTree.add(branch, parent);
@@ -291,12 +334,22 @@ public class ServerLibraryManager implements EntryPoint {
 		} 
 		// Else add to moduleTree
 		else {
-			if (file.type == ModuleType.DATA){
-				moduleTree.add(branch, moduleTree_data);
-			} else if (file.type == ModuleType.EXECUTABLE){
-				moduleTree.add(branch, moduleTree_modules);
-			} else {
-				moduleTree.add(branch, moduleTree_workflows);
+			String moduleType = parent.getName();
+			TreeNode[] existingTypes = moduleTree.getChildren(moduleTree.getRoot());
+			
+			boolean createNew = true;
+			for (TreeNode type : existingTypes){
+				if (type.getName().equals(moduleType)){
+					moduleTree.add(branch, type);
+					createNew = false;
+					break;
+				}
+			}
+			
+			if (createNew){
+				TreeNode newType = new TreeNode(moduleType);
+				moduleTree.add(newType, moduleTree.getRoot());
+				moduleTree.add(branch, newType);
 			}
 		}
 	}
@@ -324,7 +377,6 @@ public class ServerLibraryManager implements EntryPoint {
 			        	for(FileTree file: result.children){
 			        		TreeNode branch = new TreeNode(file.name);
 				    		branch.setAttribute("fullPath", file.fullPath);
-				    		branch.setAttribute("moduleType", file.type);
 				    		
 				    		resultsTree.add(branch, root);
 			        	}
@@ -332,6 +384,84 @@ public class ServerLibraryManager implements EntryPoint {
 		        }
 		    }
         );
+	}
+	
+	private void fileOperations(String[] selected){
+		clearWorkarea();
+		
+		// WorkareaTitle
+		Label workareaTitle = new Label("File Operations");
+		workareaTitle.setHeight(20);
+		workareaTitle.setStyleName("workarea-title");
+		workarea.addMember(workareaTitle);
+		
+		Label recordsInfo = new Label("Selecting a folder is synonomous to selecting all pipefiles containted in that folder (at any depth)");
+		recordsInfo.setHeight(30);
+		recordsInfo.setStyleName("workarea-instructions");
+		recordsInfo.setValign(VerticalAlignment.TOP);
+		workarea.addMember(recordsInfo);
+		
+		// Actions
+		Button remove = new Button("Remove");
+		Button download = new Button("Download");
+		Button copy = new Button("Copy");
+		Button move = new Button("Move");
+		
+		HLayout copyMoveButtons = new HLayout(10);
+		copyMoveButtons.setAlign(Alignment.CENTER);
+		copyMoveButtons.addMember(copy);
+		copyMoveButtons.addMember(move);
+		
+		ComboBoxItem combo = new ComboBoxItem();
+		combo.setTitle("To Package"); 
+		combo.setValueMap(currentPackages);
+		
+		DynamicForm form = new DynamicForm();
+		form.setItems(combo);		
+		
+		VLayout copyMoveLayout = new VLayout(5);
+		copyMoveLayout.setPadding(5);
+		copyMoveLayout.setWidth(250);
+		copyMoveLayout.setHeight(80);
+		copyMoveLayout.setShowEdges(true);
+		copyMoveLayout.setDefaultLayoutAlign(Alignment.CENTER);
+		copyMoveLayout.addMember(copyMoveButtons);
+		copyMoveLayout.addMember(form);
+		
+		VLayout downloadLayout = new VLayout();
+		downloadLayout.setPadding(5);
+		downloadLayout.setWidth(110);
+		downloadLayout.setHeight(30);
+		downloadLayout.setShowEdges(true);
+		downloadLayout.addMember(download);
+		
+		VLayout removeLayout = new VLayout();
+		removeLayout.setPadding(5);
+		removeLayout.setWidth(110);
+		removeLayout.setHeight(30);
+		removeLayout.setShowEdges(true);
+		removeLayout.addMember(remove);
+		
+		final HLayout actions = new HLayout(10);
+		actions.setHeight(100);
+		actions.addMember(downloadLayout);
+		actions.addMember(removeLayout);
+		actions.addMember(copyMoveLayout);
+		
+		workarea.addMember(actions);
+		
+		// SelectedFiles
+		Label recordsTitle = new Label("Selected Files and Folders");
+		recordsTitle.setHeight(20);
+		recordsTitle.setStyleName("workarea-subtitle");
+		workarea.addMember(recordsTitle);
+		
+		for(String filename : selected){
+			Label selectedFile = new Label(filename);
+			selectedFile.setHeight(15);
+			selectedFile.setStyleName("workarea-selectedFile");
+			workarea.addMember(selectedFile);
+		}
 	}
 	
 	/**
@@ -446,14 +576,11 @@ public class ServerLibraryManager implements EntryPoint {
 		newDir.setDefaultValue(rootDirectory);
 		newDir.setShowTitle(false);
 		newDir.setWidth(289);
-		newDir.setAlign(Alignment.CENTER);
-		newDir.setVAlign(VerticalAlignment.CENTER);
 		
 		final DynamicForm form = new DynamicForm();
 		form.setHeight(40);
 		form.setMargin(5);
-		form.setLayoutAlign(Alignment.CENTER);
-		form.setLayoutAlign(VerticalAlignment.CENTER);
+		form.setAlign(Alignment.CENTER);
 		form.setFields(new FormItem[] {newDir});
 		
 		newDir.addKeyUpHandler(new KeyUpHandler() {  
