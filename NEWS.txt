@@ -3,3 +3,9 @@
 ** New Features
 
 Users can change the root directory and browser files within the directory
+
+* Noteworthy changes in release 1.0 (2012-01-05) [stable]
+
+** New Features
+
+File Operations User Interface (dowmload, remove, copy, move)
