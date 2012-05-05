@@ -369,10 +369,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			for( ; rs.next(); )
 			{
 				Pipefile cur_pipefile = new Pipefile();
-				cur_pipefile.name = rs.getString(1);
-				cur_pipefile.type = rs.getString(2);
-				cur_pipefile.packageName = rs.getString(3);
-				cur_pipefile.absolutePath = rs.getString(4);
+				cur_pipefile.name = rs.getString(3);
+				cur_pipefile.type = rs.getString(4);
+				cur_pipefile.packageName = rs.getString(5);
+				cur_pipefile.absolutePath = rs.getString(2);
+				cur_pipefile.accessResrictions = rs.getString(8);
 				al.add(cur_pipefile);
 			}
 		}
