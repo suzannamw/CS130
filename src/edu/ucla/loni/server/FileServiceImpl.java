@@ -243,6 +243,10 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 					}
 					
 					if (insert){
+						/*
+						 * database schema for pipefile
+						 */
+						
 						stmt = con.prepareStatement(
 							"INSERT INTO pipefile (directoryID, absolutePath, name, type, packageName, description, tags, access, " +
 								"location, uri, searchableText, lastModified) " +
@@ -379,13 +383,26 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Removes a file from the server
 	 *  @param filename absolute path of the file
 	 */
-	public void removeFile(String Filename) {
+	public void removeFile(String Filename) throws SQLException {
 		// TODO
 		// If the file exists
 		//   delete the file
 		//   delete the row corresponding to this file in the database
 		//   update access restrictions file
-		return;
+		
+		File f = new File(Filename);
+		if (f.exists()){
+			f.delete(); // check return status
+			Connection con = getDatabaseConnection();
+			
+			PreparedStatement stmt = con.prepareStatement(
+				"DELETE FROM pipefile " +
+				"WHERE absolutePath = ?" 		
+			);
+			stmt.setString(1, Filename);
+			stmt.executeUpdate();
+			//todo: update access restrictions file
+		}
 	}
 	
 	/**

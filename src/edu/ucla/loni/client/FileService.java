@@ -1,5 +1,7 @@
 package edu.ucla.loni.client;
 
+import java.sql.SQLException;
+
 import edu.ucla.loni.shared.*;
 
 import com.google.gwt.user.client.rpc.RemoteService;
@@ -13,7 +15,7 @@ public interface FileService extends RemoteService {
 	
 	void 		updateFile(Pipefile pipe);
 	
-	void		removeFile(String filename);
+	void		removeFile(String filename) throws SQLException;
 	void		removeFiles(String filenames[]);
 	
 	void 		copyFile(String filename, String packageName);
