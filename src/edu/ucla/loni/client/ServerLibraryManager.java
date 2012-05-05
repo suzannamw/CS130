@@ -1,10 +1,8 @@
 package edu.ucla.loni.client;
 
-import java.util.LinkedHashMap;
+import edu.ucla.loni.shared.*;
 
-import edu.ucla.loni.shared.FileTree;
-import edu.ucla.loni.shared.Group;
-import edu.ucla.loni.shared.Pipefile;
+import java.util.LinkedHashMap;
 
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
@@ -12,10 +10,9 @@ import com.google.gwt.user.client.rpc.AsyncCallback;
 
 import com.smartgwt.client.types.Alignment;
 import com.smartgwt.client.types.KeyNames;
-import com.smartgwt.client.types.VerticalAlignment;
+
 import com.smartgwt.client.widgets.events.ClickEvent;  
 import com.smartgwt.client.widgets.events.ClickHandler;
-
 import com.smartgwt.client.widgets.Button;
 import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
@@ -26,6 +23,8 @@ import com.smartgwt.client.widgets.form.fields.events.ChangedEvent;
 import com.smartgwt.client.widgets.form.fields.events.ChangedHandler;
 import com.smartgwt.client.widgets.form.fields.events.KeyUpEvent;
 import com.smartgwt.client.widgets.form.fields.events.KeyUpHandler;
+import com.smartgwt.client.widgets.grid.ListGrid;
+import com.smartgwt.client.widgets.grid.ListGridField;
 import com.smartgwt.client.widgets.grid.ListGridRecord;
 import com.smartgwt.client.widgets.layout.HLayout;
 import com.smartgwt.client.widgets.layout.VLayout;
@@ -53,7 +52,7 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   Default Root Directory
 	 */
-	private String rootDirectoryDefault = "C:\\Users\\charlie\\Desktop\\PipelineRoot12";
+	private String rootDirectoryDefault = "C:\\Users\\charlie\\Desktop\\CraniumLibrary";
 	
 	/**
 	 *   Current Root Directory
@@ -61,44 +60,70 @@ public class ServerLibraryManager implements EntryPoint {
 	private String rootDirectory = rootDirectoryDefault;
 	
 	/**
-	 *   Current Packages
+	 *   Workarea
+	 *   <p>
+	 *   Updated by a lot of functions
 	 */
-	private final LinkedHashMap<String, String> currentPackages = new LinkedHashMap<String,String>();
-	
-	/**
-	 *   Current Selected Files
-	 */
-	private String[] currentSelectedFiles;
-	
-	/**
-	 *   Current Pipefile
-	 */
-	private Pipefile currentPipefile;
-	
-	/**
-	 *   Current Groups
-	 */
-	private Group[] currentGroups;
+	private final VLayout workarea = new VLayout();
 	
 	/**
 	 *   Package Tree
+	 *   <p>
+	 *   Set in: treeRefresh
+	 *   <br>
+	 *   Used in: onModuleLoad
 	 */
 	private final Tree packageTree = new Tree();
 	
 	/**
 	 *   Module Tree
+	 *   <p>
+	 *   Set in: treeRefresh
+	 *   <br>
+	 *   Used in: onModuleLoad
 	 */
 	private final Tree moduleTree = new Tree();
 	
 	/**
 	 *   Results Tree
+	 *   <p>
+	 *   Set in: treeResults
+	 *   <br>
+	 *   Used in: onModuleLoad
 	 */
 	private final Tree resultsTree = new Tree();
+
+	/**
+	 *  String abosolutePath => Pipefile pipe
+	 *  <p>
+	 *  Set in: treeRefresh
+	 *  <br>
+	 *  Used in: viewFile, editFile
+	 */
+	private final LinkedHashMap<String, Pipefile> pipes = new LinkedHashMap<String, Pipefile>();
 	
 	/**
-	 *   Workarea
+	 *   Set in: treeRefresh 
+	 *   <br>
+	 *   Used in: fileOperations
 	 */
-	private final VLayout workarea = new VLayout();
+	private String[] packages;
+	
+	/**
+	 *   Set in: selectPipefileHandler 
+	 *   <br>
+	 *   Used in: fileOperations
+	 */
+	private String[] selectedFiles;
+	
+	/**
+	 *   String groupName => Group g
+	 *   <p>
+	 *   Set in viewGroups
+	 *   <br>
+	 *   Used in editGroup
+	 */
+	private final LinkedHashMap<String, Group> groups = new LinkedHashMap<String, Group>();
 	
 	/**
 	 *   NodeClickHandler for when a pipefile is selected within a tree
@@ -118,7 +143,6 @@ public class ServerLibraryManager implements EntryPoint {
 				grid.deselectRecord(clicked);
 				// Select all the leaves
 				grid.selectRecords(tree.getDescendantLeaves(clicked));
-				
 			}
 			
 			ListGridRecord[] selected = grid.getSelectedRecords();
@@ -127,14 +151,14 @@ public class ServerLibraryManager implements EntryPoint {
 				basicInstructions();
 			}
 			else if (numSelected == 1 && !folder){
-				viewFile(clicked.getAttribute("fullPath"));
+				viewFile(clicked.getAttribute("absolutePath"));
 			}
 			else {
-				currentSelectedFiles = new String[selected.length];
+				selectedFiles = new String[selected.length];
 				for (int i = 0; i < selected.length; i++){
-					currentSelectedFiles[i] = selected[i].getAttribute("fullPath");
+					selectedFiles[i] = selected[i].getAttribute("absolutePath");
 				}
-				fileOperations(currentSelectedFiles);
+				fileOperations(selectedFiles);
 			}
 		}
 	};
@@ -295,95 +319,117 @@ public class ServerLibraryManager implements EntryPoint {
 		moduleTree.removeList(moduleTree.getDescendants());
 		
 	    // Update Trees
-		fileServer.getPackageTree(
+		fileServer.getFiles(
             rootDirectory, 
-            new AsyncCallback<FileTree>() {
+            new AsyncCallback<Pipefile[]>() {
 		        public void onFailure(Throwable caught) {
-		    	    packageTree.add( new TreeNode("Error fetching " + rootDirectory), packageTree.getRoot());
+		        	error("Call to getFiles failed");
 		        }
 
-		        public void onSuccess(FileTree result) {
-		    	    if (result != null && result.children != null){
-			    	    for(FileTree folder: result.children){
-			    		    treeParse(folder, packageTree.getRoot());
-			    		    currentPackages.put(folder.fullPath, folder.name);
-			    	    }
-		    	    }
+		        public void onSuccess(Pipefile[] result) {
+		        	if (result != null) {
+		        		LinkedHashMap<String, TreeNode> packageMap = new LinkedHashMap<String, TreeNode>();
+		        		LinkedHashMap<String, TreeNode> packageTypeMap = new LinkedHashMap<String, TreeNode>();
+		        	
+		        		LinkedHashMap<String, TreeNode> typeMap = new LinkedHashMap<String, TreeNode>();
+		        		LinkedHashMap<String, TreeNode> typePackageMap = new LinkedHashMap<String, TreeNode>();
+		        	
+			        	for (Pipefile p : result){
+			        		pipes.put(p.absolutePath, p);
+			        		
+			        		TreeNode pipe = new TreeNode(p.name);
+			        		pipe.setAttribute("absolutePath", p.absolutePath);
+			        		
+			        		// Package Tree
+			        		TreeNode packageTreeGrandParent;
+			        		
+			        		if (packageMap.containsKey(p.packageName)){
+			        			packageTreeGrandParent = packageMap.get(p.packageName);
+			        		} else {
+			        			packageTreeGrandParent = new TreeNode(p.packageName);
+			        			packageTree.add(packageTreeGrandParent, packageTree.getRoot());
+			        			packageMap.put(p.packageName, packageTreeGrandParent);
+			        		}
+			        		
+			        		TreeNode packageTreeParent;
+			        		String package_type = p.packageName + p.type;
+			        		
+			        		if (packageTypeMap.containsKey(package_type)){
+			        			packageTreeParent = packageTypeMap.get(package_type);
+			        		} else {
+			        			packageTreeParent = new TreeNode(p.type);
+			        			packageTree.add(packageTreeParent, packageTreeGrandParent);
+			        			packageTypeMap.put(package_type, packageTreeParent);
+			        		}
+			        		
+			        		packageTree.add(pipe, packageTreeParent);
+			        		
+			        		// Module Tree
+			        		TreeNode moduleTreeGrandParent;
+			        		
+			        		if (typeMap.containsKey(p.type)){
+			        			moduleTreeGrandParent = typeMap.get(p.type);
+			        		} else {
+			        			moduleTreeGrandParent = new TreeNode(p.type);
+			        			moduleTree.add(moduleTreeGrandParent, moduleTree.getRoot());
+			        			typeMap.put(p.type, moduleTreeGrandParent);
+			        		}
+			        		
+			        		TreeNode moduleTreeParent;
+			        		String type_package = p.type + p.packageName ;
+			        		
+			        		if (typePackageMap.containsKey(type_package)){
+			        			moduleTreeParent = typePackageMap.get(type_package);
+			        		} else {
+			        			moduleTreeParent = new TreeNode(p.packageName);
+			        			moduleTree.add(moduleTreeParent, moduleTreeGrandParent);
+			        			typePackageMap.put(type_package, moduleTreeParent);
+			        		}
+			        		
+			        		moduleTree.add(pipe, moduleTreeParent);
+			        	}
+		        	
+			        	packages = new String[packageMap.size()];
+			        	packages = packageMap.keySet().toArray(packages);
+		        	}
 		        }
 		    }
         );
-	}
-	
-	/**
-	 *  Adds each file to its proper place on the Package Tree and Module Tree
-	 */
-	private void treeParse(FileTree file, TreeNode parent){
-		TreeNode branch = new TreeNode(file.name);
-		branch.setAttribute("fullPath", file.fullPath);
-		
-		// Add to packageTree
-		packageTree.add(branch, parent);
-		
-		// If folder, recurse
-		if (file.folder){
-			if (file.children != null){
-				for(FileTree child : file.children){
-					treeParse(child, branch);
-				}
-			}
-		} 
-		// Else add to moduleTree
-		else {
-			String moduleType = parent.getName();
-			TreeNode[] existingTypes = moduleTree.getChildren(moduleTree.getRoot());
-			
-			boolean createNew = true;
-			for (TreeNode type : existingTypes){
-				if (type.getName().equals(moduleType)){
-					moduleTree.add(branch, type);
-					createNew = false;
-					break;
-				}
-			}
-			
-			if (createNew){
-				TreeNode newType = new TreeNode(moduleType);
-				moduleTree.add(newType, moduleTree.getRoot());
-				moduleTree.add(branch, newType);
-			}
-		}
 	}
 	
 	/**
 	 *  Updates ResultsTree based on what query is returned by the server
 	 */
 	private void treeResults(final String query){
-		fileServer.getSearchResults(
-            rootDirectory,
-            query,
-            new AsyncCallback<FileTree>() {
-		        public void onFailure(Throwable caught) {
-		        	clearWorkarea();
-		    	    workarea.addMember(new Label("Error fetching pipefile: " + query));
-		        }
-
-		        public void onSuccess(FileTree result) {
-		        	// Clear the resultsTree
-		        	resultsTree.removeList(resultsTree.getDescendants());
-		        	
-		        	// Add in all the search results
-		        	TreeNode root = resultsTree.getRoot();
-		        	if (result != null && result.children != null){
-			        	for(FileTree file: result.children){
-			        		TreeNode branch = new TreeNode(file.name);
-				    		branch.setAttribute("fullPath", file.fullPath);
-				    		
-				    		resultsTree.add(branch, root);
+		// Clear resultsTree
+		resultsTree.removeList(resultsTree.getDescendants());
+		
+		if (query.length() >= 2){
+			fileServer.getSearchResults(
+	            rootDirectory,
+	            query,
+	            new AsyncCallback<Pipefile[]>() {
+			        public void onFailure(Throwable caught) {
+			        	error("Call to getSearchResults failed");
+			        }
+	
+			        public void onSuccess(Pipefile[] result) {
+			        	if (result != null){
+			        		for (Pipefile p : result){
+			        			if (pipes.containsKey(p.absolutePath) == false){
+			        				pipes.put(p.absolutePath, p);
+			        			}
+				        		
+				        		TreeNode pipe = new TreeNode(p.name);
+				        		pipe.setAttribute("absolutePath", p.absolutePath);
+				        		
+				        		resultsTree.add(pipe, resultsTree.getRoot());
+			        		}
 			        	}
-		        	}
-		        }
-		    }
-        );
+			        }
+			    }
+	        );
+		}
 	}
 	
 	private void fileOperations(String[] selected){
@@ -394,12 +440,6 @@ public class ServerLibraryManager implements EntryPoint {
 		workareaTitle.setHeight(20);
 		workareaTitle.setStyleName("workarea-title");
 		workarea.addMember(workareaTitle);
-		
-		Label recordsInfo = new Label("Selecting a folder is synonomous to selecting all pipefiles containted in that folder (at any depth)");
-		recordsInfo.setHeight(30);
-		recordsInfo.setStyleName("workarea-instructions");
-		recordsInfo.setValign(VerticalAlignment.TOP);
-		workarea.addMember(recordsInfo);
 		
 		// Actions
 		Button remove = new Button("Remove");
@@ -414,7 +454,7 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		ComboBoxItem combo = new ComboBoxItem();
 		combo.setTitle("To Package"); 
-		combo.setValueMap(currentPackages);
+		combo.setValueMap(packages);
 		
 		DynamicForm form = new DynamicForm();
 		form.setItems(combo);		
@@ -451,17 +491,36 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(actions);
 		
 		// SelectedFiles
-		Label recordsTitle = new Label("Selected Files and Folders");
-		recordsTitle.setHeight(20);
-		recordsTitle.setStyleName("workarea-subtitle");
-		workarea.addMember(recordsTitle);
 		
-		for(String filename : selected){
-			Label selectedFile = new Label(filename);
-			selectedFile.setHeight(15);
-			selectedFile.setStyleName("workarea-selectedFile");
-			workarea.addMember(selectedFile);
+		// WorkareaTitle
+		Label selectedTitle = new Label("Selected Files");
+		selectedTitle.setHeight(20);
+		selectedTitle.setStyleName("workarea-title");
+		workarea.addMember(selectedTitle);
+		
+		ListGrid grid = new ListGrid();
+		grid.setWidth(600);
+		ListGridField nField = new ListGridField("name", "Name");  
+        ListGridField pField = new ListGridField("packageName", "Package");  
+        ListGridField tField = new ListGridField("type", "Type");
+        grid.setFields(nField, pField, tField);
+        
+		ListGridRecord[] records = new ListGridRecord[selected.length];
+		
+		for(int i = 0; i < selected.length; i++){
+			Pipefile pipe = pipes.get(selected[i]);
+			
+			ListGridRecord record = new ListGridRecord();
+			record.setAttribute("name", pipe.name);
+			record.setAttribute("packageName", pipe.packageName);
+			record.setAttribute("type", pipe.type);
+			
+			records[i] = record;
 		}
+		
+		grid.setData(records);
+		
+		workarea.addMember(grid);
 	}
 	
 	/**
@@ -472,33 +531,23 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Saves the Pipefile to the private variable currentPipefile
 	 *  @param pathname full pathname for the file
 	 */
-	private void viewFile(final String pathname){
+	private void viewFile(String absolutePath){
 		clearWorkarea();
 		
-		fileServer.getFile(
-            pathname, 
-            new AsyncCallback<Pipefile>() {
-		        public void onFailure(Throwable caught) {
-		    	    workarea.addMember(new Label("Error fetching pipefile: " + pathname));
-		        }
-
-		        public void onSuccess(Pipefile result) {
-		        	currentPipefile = result;
-        			// TODO
-		        	// Parse XML
-        			// Display properties
-		        	clearWorkarea();
-		        	workarea.addMember(new Label(pathname));
-		        }
-		    }
-        );
+		Pipefile pipe = pipes.get(absolutePath);
+		
+		// TODO display properties
 	}
 	
 	/**
 	 *  Updates the workarea with a form to edit the file
 	 */
-	private void editFile(){
-		// TODO
+	private void editFile(String absolutePath){
+		clearWorkarea();
+		
+		Pipefile pipe = pipes.get(absolutePath);
+		
+		// TODO display properties
 	}
 	
 	/**
@@ -506,7 +555,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 */
 	private void viewGroups(){
 		// TODO
-		// Call getGroups, save into private variable currentGroups
+		// Call getGroups, save into private variable groups
 		
 		// Create a table
 		
@@ -525,7 +574,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Updates workarea with a form to edit a group 
 	 *  @param groupIndex is an index into the currentGroups
 	 */
-	private void editGroup(int groupIndex){
+	private void editGroup(String groupName){
 		// TODO
 		
 		// Find the group in the private variable
@@ -559,6 +608,7 @@ public class ServerLibraryManager implements EntryPoint {
 	    
 	    current.addClickHandler(new ClickHandler() {
 	    	public void onClick(ClickEvent event){
+	    		// Update the view
 	    		container.removeMember(current);
 	    		rootDirectoyEdit(container);
 	    	}
@@ -587,10 +637,19 @@ public class ServerLibraryManager implements EntryPoint {
             public void onKeyUp(KeyUpEvent event) {
             	String pressed = event.getKeyName();
             	if (pressed.equals(KeyNames.ENTER)){
-	            	container.removeMember(form);
-	            	rootDirectory = newDir.getValueAsString();
-	            	rootDirectoryView(container);
-	            	treeRefresh();
+            		// Determine if the tree needs to be updated, set the rot directory
+	            	String newRoot = newDir.getValueAsString();
+	            	Boolean updateTree = rootDirectory.equals(newRoot) == false;
+	            	rootDirectory = newRoot;
+            		
+            		// Update the view
+            		container.removeMember(form);
+        	        rootDirectoryView(container);
+        	        
+        	        // Update the tree if need be
+        	        if (updateTree){
+        	        	treeRefresh();
+        	        }
 	            }
             }  
         });
@@ -613,5 +672,10 @@ public class ServerLibraryManager implements EntryPoint {
 	 */
 	private void clearWorkarea(){
 		workarea.removeMembers( workarea.getMembers() );
+	}
+	
+	private void error(String message){
+		clearWorkarea();
+		workarea.addMember(new Label("Error: " + message));
 	}
 }

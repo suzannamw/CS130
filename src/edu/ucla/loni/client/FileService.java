@@ -1,18 +1,15 @@
 package edu.ucla.loni.client;
 
-import edu.ucla.loni.shared.FileTree;
-import edu.ucla.loni.shared.Group;
-import edu.ucla.loni.shared.Pipefile;
+import edu.ucla.loni.shared.*;
 
 import com.google.gwt.user.client.rpc.RemoteService;
 import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;
 
 @RemoteServiceRelativePath("file")
 public interface FileService extends RemoteService {
-	FileTree	getPackageTree(String root);
-	FileTree 	getSearchResults(String root, String query);
+	Pipefile[]	getFiles(String root);
 	
-	Pipefile 	getFile(String filename);
+	Pipefile[] 	getSearchResults(String root, String query);
 	
 	void 		updateFile(Pipefile pipe);
 	

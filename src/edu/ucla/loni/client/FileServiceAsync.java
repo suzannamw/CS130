@@ -1,16 +1,13 @@
 package edu.ucla.loni.client;
 
-import edu.ucla.loni.shared.FileTree;
-import edu.ucla.loni.shared.Group;
-import edu.ucla.loni.shared.Pipefile;
+import edu.ucla.loni.shared.*;
 
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
 public interface FileServiceAsync {
-	void getPackageTree(String root, AsyncCallback<FileTree> callback);
-	void getSearchResults(String root, String query, AsyncCallback<FileTree> callback);
+	void getFiles(String root, AsyncCallback<Pipefile[]> callback);
 	
-	void getFile(String filename, AsyncCallback<Pipefile> callback);
+	void getSearchResults(String root, String query, AsyncCallback<Pipefile[]> callback);
 	
 	void updateFile(Pipefile pipe, AsyncCallback<Void> callback);
 	
