@@ -357,25 +357,14 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param query what the user is searching for
 	 */
 	public Pipefile[] getSearchResults(String root, String query){
-		// TODO
-		// Call database to get results
-		// Change to proper format
-		ArrayList<Pipefile> al = new ArrayList();
+		ArrayList<Pipefile> al = new ArrayList<Pipefile>();
 		try
 		{
 			Connection con = getDatabaseConnection();
-			Statement st = con.createStatement();
-			ResultSet rs = st.executeQuery("SELECT * FROM pipefile WHERE absolutePath LIKE '%" + root + "%' AND searchableText LIKE '%" + query + "%'");
-			for( ; rs.next(); )
-			{
-				Pipefile cur_pipefile = new Pipefile();
-				cur_pipefile.name = rs.getString(3);
-				cur_pipefile.type = rs.getString(4);
-				cur_pipefile.packageName = rs.getString(5);
-				cur_pipefile.absolutePath = rs.getString(2);
-				cur_pipefile.accessResrictions = rs.getString(8);
-				al.add(cur_pipefile);
-			}
+			PreparedStatement stmt = con.prepareStatement("SELECT * FROM pipefile WHERE absolutePath LIKE \'%?%\' AND searchableText LIKE \'%?%\'");
+			stmt.setString(1, root);
+			stmt.setString(2, query);
+			return resultSetToPipefileArray(stmt.executeQuery());
 		}
 		catch(Exception e)
 		{
@@ -386,9 +375,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			r[0].type = "Error";
 			return r;
 		}
-		Pipefile[] ret = new Pipefile[al.size()];
-		ret = al.toArray(ret);
-		return ret;
 	}
 	
 	/**
