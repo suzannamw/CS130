@@ -613,10 +613,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param packageName absolute path of the package
 	 */
 	public void moveFiles(String[] filenames, String packageName){
-		// TODO
-		// For each filename
-		//   Call moveFile
-		return;
+		for (String filename : filenames) {
+			moveFile(filename, packageName);
+		}
 	}
 	
 	/**
