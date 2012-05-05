@@ -396,7 +396,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			} else {
 				return null;
 			}
-		} catch (Exception e) {
+		} 
+		catch (Exception e) {
 			e.printStackTrace();
 			throw new Exception(e.getMessage());
 		}
@@ -407,39 +408,27 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param root the absolute path of the root directory
 	 *  @param query what the user is searching for
 	 */
-	public Pipefile[] getSearchResults(String root, String query){
-		// TODO
-		// Call database to get results
-		// Change to proper format
-		ArrayList<Pipefile> al = new ArrayList();
-		try
-		{
+	public Pipefile[] getSearchResults(String root, String query) throws Exception{
+		try {
+			int dirID = getDirectoryId(root);
+			
 			Connection con = getDatabaseConnection();
-			Statement st = con.createStatement();
-			ResultSet rs = st.executeQuery("SELECT * FROM pipefile WHERE absolutePath LIKE '%" + root + "%' AND searchableText LIKE '%" + query + "%'");
-			for( ; rs.next(); )
-			{
-				Pipefile cur_pipefile = new Pipefile();
-				cur_pipefile.name = rs.getString(3);
-				cur_pipefile.type = rs.getString(4);
-				cur_pipefile.packageName = rs.getString(5);
-				cur_pipefile.absolutePath = rs.getString(2);
-				cur_pipefile.access = rs.getString(8);
-				al.add(cur_pipefile);
-			}
+			PreparedStatement stmt = con.prepareStatement(
+				"SELECT * " +
+				"FROM pipefile " +
+				"WHERE directoryID = ? " +
+					"AND searchableText LIKE ?"
+			);
+			stmt.setInt(1, dirID);
+			stmt.setString(2, "%" + query + "%");
+			ResultSet rs = stmt.executeQuery();
+			
+			return resultSetToPipefileArray(rs);
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
 		}
-		catch(Exception e)
-		{
-			Pipefile[] r = new Pipefile[1];
-			r[0] = new Pipefile();
-			r[0].name = "Other Exception" + e.getMessage();
-			r[0].packageName = "Error";
-			r[0].type = "Error";
-			return r;
-		}
-		Pipefile[] ret = new Pipefile[al.size()];
-		ret = al.toArray(ret);
-		return ret;
 	}
 	
 	/**
