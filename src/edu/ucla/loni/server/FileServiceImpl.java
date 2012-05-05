@@ -133,6 +133,35 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
+	 * ResultSet is from a query with the following form 
+	 *   SELECT * FROM pipefile WHERE ...
+	 */
+	private Pipefile[] resultSetToPipefileArray(ResultSet rs) throws Exception{
+		ArrayList<Pipefile> list = new ArrayList<Pipefile>();
+		while (rs.next()) {
+			Pipefile p = new Pipefile();
+			
+			// directoryID at index 1
+			p.absolutePath = rs.getString(2);
+			p.name = rs.getString(3);
+			p.type = rs.getString(4);
+			p.packageName = rs.getString(5);
+			p.description = rs.getString(6);
+			p.tags = rs.getString(7);
+			p.access = rs.getString(8);
+			p.location = rs.getString(9);
+			p.uri = rs.getString(10);
+			// searchableText at index 11
+			// lastModifier at index 12
+			
+			list.add(p);
+		}
+		
+		Pipefile[] ret = new Pipefile[list.size()];
+		return list.toArray(ret);
+	}
+	
+	/**
 	 *  Update the database for this root folder 
 	 *  @param root absolute path of the root directory
 	 *  @throws SQLException
@@ -301,29 +330,18 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			if (rootDir.exists() && rootDir.isDirectory()){
 				updateDatabase(rootDir);
 				
+				int dirID = getDirectoryId(root);
+				
 				Connection con = getDatabaseConnection();
-				Statement stmt = con.createStatement();
-				ResultSet rs = stmt.executeQuery(
-				    "SELECT name, type, packageName, absolutePath " +
-				    "FROM pipefile as P, directory AS d " +
-				    "WHERE p.directoryID = d.directory"
+				PreparedStatement stmt = con.prepareStatement(
+			    	"SELECT * " +
+					"FROM pipefile " +
+					"WHERE directoryID = ?" 		
 				);
+			    stmt.setInt(1, dirID);
+				ResultSet rs = stmt.executeQuery();
 				
-				ArrayList<Pipefile> list = new ArrayList<Pipefile>();
-				while (rs.next()) {
-					Pipefile p = new Pipefile();
-					p.name = rs.getString(1);
-					p.type = rs.getString(2);
-					p.packageName = rs.getString(3);
-					p.absolutePath = rs.getString(4);
-					
-					list.add(p);
-				}
-				
-				Pipefile[] ret = new Pipefile[list.size()];
-				ret = list.toArray(ret);
-				
-				return ret;
+				return resultSetToPipefileArray(rs);
 			} else {
 				return null;
 			}
@@ -497,3 +515,4 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		return;
 	}
 }
+

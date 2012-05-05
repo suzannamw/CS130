@@ -4,13 +4,17 @@ import java.io.Serializable;
 
 @SuppressWarnings("serial")
 public class Pipefile implements Serializable {
+	// General Properties
+	public String absolutePath;
 	public String name;
 	public String type;		// "Data", "Modules", or "Workflows"
 	public String packageName;
-	public String absolutePath;
-	public String accessResrictions;
+	public String description;
+	public String tags;
+	public String access;
 	
+	// Type specific properties
 	// TODO input / output 		- For Data
-	// TODO location			- For Modules
-	// TODO server address		- For Modules and Workflows
+	public String location;		// - For Modules
+	public String uri;			// - For Modules and Workflows
 }
