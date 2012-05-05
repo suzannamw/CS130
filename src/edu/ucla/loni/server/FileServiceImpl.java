@@ -515,6 +515,43 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		return;
 	}
 	
+	/*
+	*  given an absolute path string, this function attempts to isolate actual name of file
+	*  @param s - absolute path of file
+	*/
+	protected String extractFileName(String s)
+	{
+		String res = "";
+		for( int i = s.length() - 1; i >= 0; i-- )
+		{
+			if( s.charAt(i) == '\\' )
+			{
+				res = s.substring(i + 1, s.length());
+				break;
+			}
+		}
+		return res;
+	}
+	
+	/*
+	*  given an absolute path string, this function isolates the directory absolute address where
+	*  current file is placed
+	*  @param s - absolute path of file
+	*/
+	protected String extractDirName(String s)
+	{
+		String res = "";
+		for( int i = s.length() - 1; i >= 0; i-- )
+		{
+			if( s.charAt(i) == '\\')
+			{
+				res = s.substring(0, i);
+				break;
+			}
+		}
+		return res;
+	}
+	
 	/**
 	 *  Move a file from the server to the proper package
 	 *  @param filename absolute path of the file = source path of file
