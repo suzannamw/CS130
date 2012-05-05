@@ -323,7 +323,7 @@ public class ServerLibraryManager implements EntryPoint {
             rootDirectory, 
             new AsyncCallback<Pipefile[]>() {
 		        public void onFailure(Throwable caught) {
-		        	error("Call to getFiles failed");
+		        	error("Call to getFiles failed: " + caught.getMessage());
 		        }
 
 		        public void onSuccess(Pipefile[] result) {

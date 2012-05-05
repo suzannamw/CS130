@@ -7,21 +7,16 @@ import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;
 
 @RemoteServiceRelativePath("file")
 public interface FileService extends RemoteService {
-	Pipefile[]	getFiles(String root);
+	Pipefile[]	getFiles(String root) throws Exception;
 	
-	Pipefile[] 	getSearchResults(String root, String query);
+	Pipefile[] 	getSearchResults(String root, String query) throws Exception;
 	
-	void 		updateFile(Pipefile pipe);
+	void 		updateFile(Pipefile pipe) throws Exception;
 	
-	void		removeFile(String filename);
-	void		removeFiles(String filenames[]);
+	void		removeFiles(String filenames[]) throws Exception;	
+	void 		copyFiles(String[] filenames, String packageName) throws Exception;
+	void 		moveFiles(String[] filenames, String packageName) throws Exception;
 	
-	void 		copyFile(String filename, String packageName);
-	void 		copyFiles(String[] filenames, String packageName);
-	
-	void 		moveFile(String filename, String packageName);
-	void 		moveFiles(String[] filenames, String packageName);
-	
-	Group[]		getGroups();
-	void		updateGroup(Group g);	
+	Group[]		getGroups() throws Exception;
+	void		updateGroup(Group g) throws Exception;	
 }

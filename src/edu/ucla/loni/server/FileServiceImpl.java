@@ -1,25 +1,21 @@
 package edu.ucla.loni.server;
 
 import java.io.File;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
 import edu.ucla.loni.client.FileService;
 import edu.ucla.loni.shared.*;
@@ -42,7 +38,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Returns a connection to the database
 	 */
-	private Connection getDatabaseConnection() throws SQLException {
+	private Connection getDatabaseConnection() throws Exception {
 		if (db_connection == null){
 			db_connection = DriverManager.getConnection(db_name, db_username, db_password);
 		}
@@ -75,7 +71,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 * @param absolutePath absolute path of the root directory  
 	 * @return directoryID of the root directory
 	 */
-	private int getDirectoryId(String absolutePath) throws SQLException{
+	private int getDirectoryId(String absolutePath) throws Exception{
 		int ret = selectDirectoryId(absolutePath);
 		if(ret == -1){
 			insertDirectoryId(absolutePath);
@@ -88,7 +84,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 * @param absolutePath absolute path of the root directory  
 	 * @return directoryID of the root directory, or -1 if not found
 	 */
-	private int selectDirectoryId(String absolutePath) throws SQLException{
+	private int selectDirectoryId(String absolutePath) throws Exception{
 		Connection con = getDatabaseConnection();
 		
 		PreparedStatement stmt = con.prepareStatement(
@@ -112,7 +108,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 * 
 	 * @param absolutePath absolute path of the root directory  
 	 */
-	private void insertDirectoryId(String absolutePath) throws SQLException{
+	private void insertDirectoryId(String absolutePath) throws Exception{
 		Connection con = getDatabaseConnection();
 		
 		PreparedStatement stmt = con.prepareStatement(
@@ -123,7 +119,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		stmt.executeUpdate();
 	}
 	
-	private Document parseXML(File pipe) throws ParserConfigurationException, SAXException, IOException{
+	private Document parseXML(File pipe) throws Exception{
 		DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
 		DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
 		Document doc = dBuilder.parse(pipe);
@@ -144,7 +140,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @throws IOException 
 	 *  @throws SAXException 
 	 */
-	private void updateDatabase(File rootDir) throws SQLException, ParserConfigurationException, SAXException, IOException {
+	private void updateDatabase(File rootDir) throws Exception {
 		// Get all pipefiles recursively under this folder
 		ArrayList<File> pipes = getAllPipefiles(new ArrayList<File>(), rootDir);
 		
@@ -243,6 +239,10 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 					}
 					
 					if (insert){
+						/*
+						 * database schema for pipefile
+						 */
+						
 						stmt = con.prepareStatement(
 							"INSERT INTO pipefile (directoryID, absolutePath, name, type, packageName, description, tags, access, " +
 								"location, uri, searchableText, lastModified) " +
@@ -295,7 +295,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Thus the children are the packages
 	 *  @param root the absolute path of the root directory
 	 */
-	public Pipefile[] getFiles(String root) {
+	public Pipefile[] getFiles(String root) throws Exception {
 		try {
 			File rootDir = new File(root);
 			if (rootDir.exists() && rootDir.isDirectory()){
@@ -306,7 +306,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				ResultSet rs = stmt.executeQuery(
 				    "SELECT name, type, packageName, absolutePath " +
 				    "FROM pipefile as P, directory AS d " +
-				    "WHERE p.directoryID = d.directoryID"
+				    "WHERE p.directoryID = d.directory"
 				);
 				
 				ArrayList<Pipefile> list = new ArrayList<Pipefile>();
@@ -324,26 +324,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				ret = list.toArray(ret);
 				
 				return ret;
-			}
-			else {
+			} else {
 				return null;
 			}
-		} catch (SQLException e){
-			Pipefile[] ret = new Pipefile[1];
-			ret[0] = new Pipefile();
-			ret[0].name = "SQL Exception: " + e.getMessage();
-			ret[0].packageName = "Error";
-			ret[0].type = "Error";
+		} catch (Exception e) {
 			e.printStackTrace();
-			return ret;
-    	} catch (Exception e){
-    		Pipefile[] ret = new Pipefile[1];
-			ret[0] = new Pipefile();
-			ret[0].name = "Other Exception" + e.getMessage();
-			ret[0].packageName = "Error";
-			ret[0].type = "Error";
-			return ret;
-    	}
+			throw new Exception(e.getMessage());
+		}
 	}
 	
 	/**
@@ -379,24 +366,36 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Removes a file from the server
 	 *  @param filename absolute path of the file
 	 */
-	public void removeFile(String Filename) {
-		// TODO
-		// If the file exists
-		//   delete the file
-		//   delete the row corresponding to this file in the database
-		//   update access restrictions file
-		return;
+	private void removeFile(String Filename) throws Exception {		
+		File f = new File(Filename);
+		if (f.exists()){
+			f.delete(); // TODO: check return status
+			Connection con = getDatabaseConnection();
+			
+			PreparedStatement stmt = con.prepareStatement(
+				"DELETE FROM pipefile " +
+				"WHERE absolutePath = ?" 		
+			);
+			stmt.setString(1, Filename);
+			stmt.executeUpdate();
+			//TODO: update access restrictions file
+		}
 	}
 	
 	/**
 	 *  Removes files from the server
 	 *  @param filenames absolute paths of the files
+	 * @throws SQLException 
 	 */
-	public void removeFiles(String filenames[]){
-		// TODO
-		// For each filename
-		//   Call removeFile
-		return;
+	public void removeFiles(String filenames[]) throws Exception {
+		try {
+			for (String filename : filenames) {
+				removeFile(filename);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
+		}
 	}
 	
 	/**
@@ -404,7 +403,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filename absolute path of the file
 	 *  @param packageName absolute path of the package
 	 */
-	public void copyFile(String filename, String packageName){
+	private void copyFile(String filename, String packageName) throws Exception {
 		// TODO
 		// If the file exists
 		//   Copy the file to the new destination
@@ -418,7 +417,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filenames absolute paths of the files
 	 *  @param packageName absolute path of the package
 	 */
-	public void copyFiles(String[] filenames, String packageName){
+	public void copyFiles(String[] filenames, String packageName) throws Exception {
 		// TODO
 		// For each filename
 		//   Call copyFile
@@ -430,7 +429,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filename absolute path of the file
 	 *  @param packageName absolute path of the package
 	 */
-	public void moveFile(String filenames, String packageName){
+	private void moveFile(String filenames, String packageName) throws Exception {
 		// TODO
 		// If the file exists
 		//   Move the file to the new destination
@@ -444,7 +443,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filenames absolute paths of the files
 	 *  @param packageName absolute path of the package
 	 */
-	public void moveFiles(String[] filenames, String packageName){
+	public void moveFiles(String[] filenames, String packageName) throws Exception {
 		// TODO
 		// For each filename
 		//   Call moveFile
@@ -454,7 +453,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Returns an array of all the groups
 	 */
-	public Group[] getGroups(){
+	public Group[] getGroups() throws Exception {
 		// TODO
 		// Call the database for a list of groups
 		// Convert to proper format
@@ -465,7 +464,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Updates a group on the server (also used for creating groups)
 	 *  @param group group to be updated
 	 */
-	public void	updateGroup(Group group){
+	public void	updateGroup(Group group) throws Exception{
 		// TODO
 		// Update the row in the database corresponding to this group
 		return;
