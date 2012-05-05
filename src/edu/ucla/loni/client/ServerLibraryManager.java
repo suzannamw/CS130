@@ -404,7 +404,7 @@ public class ServerLibraryManager implements EntryPoint {
 		// Clear resultsTree
 		resultsTree.removeList(resultsTree.getDescendants());
 		
-		if (query && query.length() >= 2){
+		if (query != null && query.length() >= 2){
 			fileServer.getSearchResults(
 	            rootDirectory,
 	            query,

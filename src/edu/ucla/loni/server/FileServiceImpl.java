@@ -127,8 +127,63 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		return doc;
 	}
 	
-	private String getChildElementValue(Element e, String child){
-		// TODO
+	private String getElementValue(Element textElement){
+		Node textNode = textElement.getFirstChild();
+		if (textNode != null){
+			String value = textNode.getNodeValue();
+			if (value != null){
+				return value;
+			}
+		}
+		
+		return "";
+	}
+	
+	private String getChildValues(Element e, String child){
+		NodeList children = e.getChildNodes();
+		int length = children.getLength();
+		
+		String ret = "";
+		for (int i = 0; i < length; i++){
+			Node childNode = children.item(i);
+			
+			if (childNode.getNodeType() == Node.ELEMENT_NODE){
+				Element childElement = (Element) childNode;
+				
+				if (child.equals(childElement.getNodeName())){
+					String value = getElementValue(childElement);
+					
+					if (value != ""){
+						ret += value + ", ";
+					}
+				}
+			}
+		}
+		
+		// Remove the last comma and space
+		if (ret != ""){
+			ret = ret.substring(0, ret.length() - 2);
+		}
+		
+		return ret;
+	}
+	
+	private String getChildValue(Element e, String child){
+		NodeList children = e.getChildNodes();
+		int length = children.getLength();
+		
+		for (int i = 0; i < length; i++){
+			Node childNode = children.item(i);
+			
+			if (childNode.getNodeType() == Node.ELEMENT_NODE){
+				Element childElement = (Element) childNode;
+				
+				if (child.equals(childElement.getNodeName())){
+					return getElementValue(childElement);
+				}
+			}
+		}
+		
 		return "";
 	}
 	
@@ -164,10 +219,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Update the database for this root folder 
 	 *  @param root absolute path of the root directory
-	 *  @throws SQLException
-	 *  @throws ParserConfigurationException 
-	 *  @throws IOException 
-	 *  @throws SAXException 
 	 */
 	private void updateDatabase(File rootDir) throws Exception {
 		// Get all pipefiles recursively under this folder
@@ -241,7 +292,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 					String name = mainElement.getAttribute("name");
 					String packageName = mainElement.getAttribute("package");
 					String description = mainElement.getAttribute("description");
-					String tags = getChildElementValue(mainElement, "tag");
+					String tags = getChildValues(mainElement, "tag");
 					
 					String searchableText = name + " " + packageName + " " + description + " " + tags; 
 					
@@ -264,7 +315,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 					} 
 					
 					if (type == "Modules" || type == "Workflows"){
-						uri = getChildElementValue(mainElement, "uri");
+						uri = getChildValue(mainElement, "uri");
 					}
 					
 					if (insert){
@@ -373,7 +424,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				cur_pipefile.type = rs.getString(4);
 				cur_pipefile.packageName = rs.getString(5);
 				cur_pipefile.absolutePath = rs.getString(2);
-				cur_pipefile.accessResrictions = rs.getString(8);
+				cur_pipefile.access = rs.getString(8);
 				al.add(cur_pipefile);
 			}
 		}
