@@ -359,7 +359,34 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		// TODO
 		// Call database to get results
 		// Change to proper format
-		return null;
+		ArrayList<Pipefile> al = new ArrayList();
+		try
+		{
+			Connection con = getDatabaseConnection();
+			Statement st = con.createStatement();
+			ResultSet rs = st.executeQuery("SELECT * FROM pipefile WHERE absolutePath LIKE '%" + root + "%' AND searchableText LIKE '%" + query + "%'");
+			for( ; rs.next(); )
+			{
+				Pipefile cur_pipefile = new Pipefile();
+				cur_pipefile.name = rs.getString(1);
+				cur_pipefile.type = rs.getString(2);
+				cur_pipefile.packageName = rs.getString(3);
+				cur_pipefile.absolutePath = rs.getString(4);
+				al.add(cur_pipefile);
+			}
+		}
+		catch(Exception e)
+		{
+			Pipefile[] r = new Pipefile[1];
+			r[0] = new Pipefile();
+			r[0].name = "Other Exception" + e.getMessage();
+			r[0].packageName = "Error";
+			r[0].type = "Error";
+			return r;
+		}
+		Pipefile[] ret = new Pipefile[al.size()];
+		ret = al.toArray(ret);
+		return ret;
 	}
 	
 	/**
