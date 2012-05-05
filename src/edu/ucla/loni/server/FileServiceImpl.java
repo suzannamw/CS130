@@ -361,8 +361,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		try
 		{
 			Connection con = getDatabaseConnection();
-			PreparedStatement stmt = con.prepareStatement("SELECT * FROM pipefile WHERE absolutePath LIKE \'%?%\' AND searchableText LIKE \'%?%\'");
-			stmt.setString(1, root);
+			PreparedStatement stmt = con.prepareStatement("SELECT * FROM pipefile WHERE directoryID LIKE \'%?%\' AND searchableText LIKE \'%?%\'");
+			stmt.setInt(1, getDirectoryId(root));
 			stmt.setString(2, query);
 			return resultSetToPipefileArray(stmt.executeQuery());
 		}
