@@ -16,7 +16,7 @@ public interface FileService extends RemoteService {
 	void 		updateFile(Pipefile pipe);
 	
 	void		removeFile(String filename) throws SQLException;
-	void		removeFiles(String filenames[]);
+	void		removeFiles(String filenames[]) throws SQLException;
 	
 	void 		copyFile(String filename, String packageName);
 	void 		copyFiles(String[] filenames, String packageName);

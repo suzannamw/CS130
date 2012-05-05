@@ -408,12 +408,18 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Removes files from the server
 	 *  @param filenames absolute paths of the files
+	 * @throws SQLException 
 	 */
-	public void removeFiles(String filenames[]){
+	public void removeFiles(String filenames[]) throws SQLException{
 		// TODO
 		// For each filename
 		//   Call removeFile
-		return;
+		
+		for (String filename : filenames) {
+			removeFile(filename);
+		}
+			
+		
 	}
 	
 	/**
