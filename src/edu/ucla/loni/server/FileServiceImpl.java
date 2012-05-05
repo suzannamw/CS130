@@ -512,22 +512,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	
 	/**
 	 *  Move a file from the server to the proper package
-	 *  @param filename absolute path of the file
-	 *  @param packageName absolute path of the package
-	 */
-	private void moveFile(String filenames, String packageName) throws Exception {
-		// TODO
-		// If the file exists
-		//   Move the file to the new destination
-		//     File must be changed to update the package
-		//   Update the row corresponding to this file in the database
-		return;
-	}
-	
-	/**
-	 *  Moves files from the server to the proper package
-	 *  @param filenames absolute paths of the files
-	 *  @param packageName absolute path of the package
+	 *  @param filename absolute path of the file = source path of file
+	 *  @param packageName absolute path of the package = destination folder path
 	 */
 	//Need some clarification about packageName, right now I implemented it as destination folder abs path
 	public void moveFile(String filename, String packageName){
@@ -613,6 +599,18 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		{
 			//too bad... => abort
 		}
+		return;
+	}
+	
+	/**
+	 *  Moves files from the server to the proper package
+	 *  @param filenames absolute paths of the files
+	 *  @param packageName absolute path of the package
+	 */
+	public void moveFiles(String[] filenames, String packageName){
+		// TODO
+		// For each filename
+		//   Call moveFile
 		return;
 	}
 	
