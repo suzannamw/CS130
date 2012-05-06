@@ -567,11 +567,12 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			return; //file does not exist => abort
 		}
 		//get destination directory path
-		File dir = new File(extractDirName(packageName));
+		File dir = new File(packageName);
 		//compose package name, so that every ' ' (i.e. space char) be replaced with underscore char
-		String formatted_package_name = packageName.replace(' ', '_');
+		String formatted_package_name = extractFileName(packageName).replace(' ', '_');
 		//move the file
-		boolean success = source_file.renameTo(new File(dir, extractFileName(filename)));
+		File dest_file = new File(dir, extractFileName(filename));
+		boolean success = source_file.renameTo(dest_file);
 		if( success == false )
 		{
 			return;	//for some reason file can not be moved => abort
@@ -581,7 +582,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		try
 		{
 			//parse
-			doc = parseXML(source_file);
+			doc = parseXML(dest_file);
 		}
 		catch(Exception e)
 		{
@@ -607,35 +608,42 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			TransformerFactory transformerFactory = TransformerFactory.newInstance();
 			Transformer transformer = transformerFactory.newTransformer();
 			DOMSource source = new DOMSource(doc);
-			StreamResult result = new StreamResult(new File(source_file.getAbsolutePath()));
+			StreamResult result = new StreamResult(new File(dest_file.getAbsolutePath()));
 			transformer.transform(source, result);
 			//get connection
 			Connection con = getDatabaseConnection();
 			//find the source file in pipefile table
-			PreparedStatement stmt = con.prepareStatement("SELECT * FROM pipefile WHERE absolutePath = ? AND DIRECTORY_ID = ?;");
+			PreparedStatement stmt = con.prepareStatement("SELECT * FROM pipefile WHERE absolutePath = ? AND directoryID = ?;");
 			stmt.setString(1, filename);
-			stmt.setInt(2, getDirectoryId(dir.getAbsolutePath()));
+			stmt.setInt(2, getDirectoryId(extractDirName(filename)));
 			ResultSet rs = stmt.executeQuery();
+			rs.next();
+			String arg_name = rs.getString(3);
+			String arg_type = rs.getString(4);
+			String arg_desc = rs.getString(6);
+			String arg_tags = rs.getString(7);
+			String arg_access = rs.getString(8);
+			String arg_seachable_text = rs.getString(11);
 			//insert moved_file in pipefile table
 			PreparedStatement stmt2 = con.prepareStatement("INSERT INTO pipefile VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);");
 			stmt2.setInt(1, getDirectoryId(dir.getAbsolutePath()));
-			stmt2.setString(2, source_file.getAbsolutePath());
-			stmt2.setString(3, rs.getString(3));
-			stmt2.setString(4, rs.getString(4));
+			stmt2.setString(2, dest_file.getAbsolutePath());
+			stmt2.setString(3, arg_name);
+			stmt2.setString(4, arg_type);
 			stmt2.setString(5, formatted_package_name);
-			stmt2.setString(6, rs.getString(6));
-			stmt2.setString(7, rs.getString(7));
-			stmt2.setString(8, rs.getString(8));
+			stmt2.setString(6, arg_desc);
+			stmt2.setString(7, arg_tags);
+			stmt2.setString(8, arg_access);
 			stmt2.setString(9, "");//TODO location ?? not sure what location means, in original XML overview it says "pipeline://localhost//bin/program"
 			stmt2.setString(10, "");//TODO uri ?? same story with exception that URI does not even appear in XML template on XML_overview LONI web-page
-			stmt2.setString(11, rs.getString(11));
-			stmt2.setTimestamp(12, new Timestamp(source_file.lastModified()));
+			stmt2.setString(11, arg_seachable_text);
+			stmt2.setTimestamp(12, new Timestamp(dest_file.lastModified()));
 			stmt2.executeUpdate();
 			//delete file from the pipefile table : [match file by absPath of file AND directoryID]
-			PreparedStatement stmt3 = con.prepareStatement("DELETE FROM pipefile WHERE absolutePath = ? AND DIRECTORY_ID = ?;");
+			PreparedStatement stmt3 = con.prepareStatement("DELETE FROM pipefile WHERE absolutePath = ? AND directoryID = ?;");
 			stmt3.setString(1, filename);
-			stmt3.setInt(2, getDirectoryId(dir.getAbsolutePath()));
-			stmt3.executeQuery();
+			stmt3.setInt(2, getDirectoryId(extractDirName(filename)));
+			stmt3.executeUpdate();
 		}
 		catch(Exception e)
 		{
