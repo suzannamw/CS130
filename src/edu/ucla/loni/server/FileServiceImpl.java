@@ -526,7 +526,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		String res = "";
 		for( int i = s.length() - 1; i >= 0; i-- )
 		{
-			if( s.charAt(i) == '\\' )
+			if( s.charAt(i) == File.pathSeparatorChar )
 			{
 				res = s.substring(i + 1, s.length());
 				break;
@@ -545,7 +545,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		String res = "";
 		for( int i = s.length() - 1; i >= 0; i-- )
 		{
-			if( s.charAt(i) == '\\')
+			if( s.charAt(i) == File.pathSeparatorChar )
 			{
 				res = s.substring(0, i);
 				break;
