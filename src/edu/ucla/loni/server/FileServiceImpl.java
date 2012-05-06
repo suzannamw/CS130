@@ -414,18 +414,20 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param query what the user is searching for
 	 */
 	public Pipefile[] getSearchResults(String root, String query) throws Exception{
-		try {
-			int dirID = getDirectoryId(root);
-			
+		try {	
 			Connection con = getDatabaseConnection();
+			int dirID = getDirectoryId(root);
 			PreparedStatement stmt = con.prepareStatement(
 				"SELECT * " +
 				"FROM pipefile " +
 				"WHERE directoryID = ? " +
-					"AND searchableText LIKE ?"
+					"AND searchableText LIKE '%" + query + "%';" //DO NOT CHANGE
+					//for some reason on my computer making later setString substitution
+					//was not producing the right result, i.e. not finding items in
+					//database. My guess the setString was not formatting correctly.
 			);
 			stmt.setInt(1, dirID);
-			stmt.setString(2, "%" + query + "%");
+			//stmt.setString(2, "'%" + query + "%'");
 			ResultSet rs = stmt.executeQuery();
 			
 			return resultSetToPipefileArray(rs);
