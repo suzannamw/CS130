@@ -503,6 +503,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		//   Copy the file to the new destination
 		//     File must be changed update the package
 		//   Insert a row corresponding to this file in the database
+		// do we insert or update? isnt this file already in db?
 		return;	
 	}
 	
@@ -515,7 +516,10 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		// TODO
 		// For each filename
 		//   Call copyFile
-		return;
+		
+		for (String filename : filenames) {
+			copyFile(filename, packageName);
+		}
 	}
 	
 	/*

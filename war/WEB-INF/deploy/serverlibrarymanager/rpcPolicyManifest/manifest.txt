@@ -1,3 +1,2 @@
 # Module serverlibrarymanager
 # RPC service class, partial path of RPC policy file
-edu.ucla.loni.client.FileService, 162F84FEA78B4A8F490D498EC7E3CF14.gwt.rpc
