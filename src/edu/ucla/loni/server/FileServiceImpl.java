@@ -1,19 +1,16 @@
 package edu.ucla.loni.server;
 
 import java.io.File;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.Statement;
 import java.sql.Timestamp;
+
 import java.util.ArrayList;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-
 import org.w3c.dom.Document;
-import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -125,74 +122,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		stmt.executeUpdate();
 	}
 	
-	private Document parseXML(File pipe) throws Exception{
-		DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-		DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-		Document doc = dBuilder.parse(pipe);
-		
-		return doc;
-	}
-	
-	private String getElementValue(Element textElement){
-		Node textNode = textElement.getFirstChild();
-		if (textNode != null){
-			String value = textNode.getNodeValue();
-			if (value != null){
-				return value;
-			}
-		}
-		
-		return "";
-	}
-	
-	private String getChildValues(Element e, String child){
-		NodeList children = e.getChildNodes();
-		int length = children.getLength();
-		
-		String ret = "";
-		for (int i = 0; i < length; i++){
-			Node childNode = children.item(i);
-			
-			if (childNode.getNodeType() == Node.ELEMENT_NODE){
-				Element childElement = (Element) childNode;
-				
-				if (child.equals(childElement.getNodeName())){
-					String value = getElementValue(childElement);
-					
-					if (value != ""){
-						ret += value + ", ";
-					}
-				}
-			}
-		}
-		
-		// Remove the last comma and space
-		if (ret != ""){
-			ret = ret.substring(0, ret.length() - 2);
-		}
-		
-		return ret;
-	}
-	
-	private String getChildValue(Element e, String child){
-		NodeList children = e.getChildNodes();
-		int length = children.getLength();
-		
-		for (int i = 0; i < length; i++){
-			Node childNode = children.item(i);
-			
-			if (childNode.getNodeType() == Node.ELEMENT_NODE){
-				Element childElement = (Element) childNode;
-				
-				if (child.equals(childElement.getNodeName())){
-					return getElementValue(childElement);
-				}
-			}
-		}
-		
-		return "";
-	}
-	
 	/**
 	 * ResultSet is from a query with the following form 
 	 *   SELECT * FROM pipefile WHERE ...
@@ -204,16 +133,16 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// directoryID at index 1
 			p.absolutePath = rs.getString(2);
-			p.name = rs.getString(3);
-			p.type = rs.getString(4);
-			p.packageName = rs.getString(5);
-			p.description = rs.getString(6);
-			p.tags = rs.getString(7);
-			p.access = rs.getString(8);
+			// lastModified at index 3
+			p.name = rs.getString(4);
+			p.type = rs.getString(5);
+			p.packageName = rs.getString(6);
+			p.description = rs.getString(7);
+			p.tags = rs.getString(8);
 			p.location = rs.getString(9);
 			p.uri = rs.getString(10);
-			// searchableText at index 11
-			// lastModifier at index 12
+			
+			p.access = rs.getString(11);
 			
 			list.add(p);
 		}
@@ -228,33 +157,34 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	private void updateDatabase(File rootDir) throws Exception {
 		// Get all pipefiles recursively under this folder
-		ArrayList<File> pipes = getAllPipefiles(new ArrayList<File>(), rootDir);
+		ArrayList<File> files = getAllPipefiles(new ArrayList<File>(), rootDir);
 		
-		if (pipes.size() > 0){
+		if (files.size() > 0){
 			Connection con = getDatabaseConnection();
 			 
 			int dirID = getDirectoryId(rootDir.getAbsolutePath());
 			
 			// For each pipefile
-			for (File pipe : pipes){			    
-			    // Get the dateModified of this pipefile
+			for (File file : files){			    
+			    // Get the lastModified of this pipefile to determine if database is up-to-date
 			    PreparedStatement stmt = con.prepareStatement(
 			    	"SELECT lastModified " +
 					"FROM pipefile " +
 					"WHERE absolutePath = ?" 		
 				);
-			    stmt.setString(1, pipe.getAbsolutePath());
+			    stmt.setString(1, file.getAbsolutePath());
 				ResultSet rs = stmt.executeQuery();
 			    
 				// Determine if the row needs to be updated or inserted
 			    boolean update = false;
 			    boolean insert = true;
 			    
-				if (rs.next()){
+			    Timestamp fs_lastModified = new Timestamp(file.lastModified());
+				
+			    if (rs.next()){
 					insert = false;
 					
 					Timestamp db_lastModified = rs.getTimestamp(1);
-					Timestamp fs_lastModified = new Timestamp(pipe.lastModified());
 					
 					// If file has been modified
 					if (db_lastModified.equals(fs_lastModified) == false){
@@ -263,66 +193,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				}
 				
 				// If we need to update or insert a row
-			    if (update || insert){
-			    	// Parse the file
-					Document doc = parseXML(pipe);
-					
-					NodeList group = doc.getElementsByTagName("moduleGroup");
-					NodeList data = doc.getElementsByTagName("dataModule");
-					NodeList modules = doc.getElementsByTagName("module");
-					
-					Node mainNode; // Node which holds the attributes we care out
-					String type = "";
-					
-					if (group.getLength() >= 1 && data.getLength() + modules.getLength() > 2){
-						mainNode = group.item(0);
-						type = "Workflows";
-					} else if (data.getLength() == 1){
-						mainNode = data.item(0);
-						type = "Data";
-					} else if (modules.getLength() == 1){
-						mainNode = modules.item(0);
-						type = "Modules";
-					} else {
-						continue;
-					}
-			    
-					// Convert to Element
-					Element mainElement = (Element) mainNode;
-					
-					// General properties
-					String absolutePath = pipe.getAbsolutePath();
-					Timestamp modified = new Timestamp(pipe.lastModified());
-					String access = ""; // Default access is empty
-					
-					String name = mainElement.getAttribute("name");
-					String packageName = mainElement.getAttribute("package");
-					String description = mainElement.getAttribute("description");
-					String tags = getChildValues(mainElement, "tag");
-					
-					String searchableText = name + " " + packageName + " " + description + " " + tags; 
-					
-					// Get Type specific properties
-					String input = "";
-					String output = "";
-					String location = "";
-					String uri = "";
-					
-					if (type == "Data"){
-						// TODO, 
-						// By the schema dataModule does not have output / input elements
-						// Also need to know what we are getting out
-						input = "";
-						output = "";
-					}
-					
-					if (type == "Modules"){
-						location = mainElement.getAttribute("location");
-					} 
-					
-					if (type == "Modules" || type == "Workflows"){
-						uri = getChildValue(mainElement, "uri");
-					}
+			    if (update || insert){			    	
+			    	Pipefile pipe = ServerUtils.parseFile(file);
 					
 					if (insert){
 						/*
@@ -330,40 +202,40 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 						 */
 						
 						stmt = con.prepareStatement(
-							"INSERT INTO pipefile (directoryID, absolutePath, name, type, packageName, description, tags, access, " +
-								"location, uri, searchableText, lastModified) " +
-							"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+							"INSERT INTO pipefile (" +
+								"directoryID, absolutePath, lastModified, " +
+								"name, type, packageName, description, tags, " +
+								"location, uri, access) " +
+							"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 						);
 						stmt.setInt(1, dirID);
-						stmt.setString(2, absolutePath);
-						stmt.setString(3, name);
-						stmt.setString(4, type);
-						stmt.setString(5, packageName);
-						stmt.setString(6, description);
-						stmt.setString(7, tags);
-						stmt.setString(8, access);
-						stmt.setString(9, location);
-						stmt.setString(10, uri);
-						stmt.setString(11, searchableText);
-						stmt.setTimestamp(12, modified);
+						stmt.setString(2, pipe.absolutePath);
+						stmt.setTimestamp(3, fs_lastModified);
+						stmt.setString(4, pipe.name);
+						stmt.setString(5, pipe.type);
+						stmt.setString(6, pipe.packageName);
+						stmt.setString(7, pipe.description);
+						stmt.setString(8, pipe.tags);
+						stmt.setString(9, pipe.location);
+						stmt.setString(10, pipe.uri);
+						stmt.setString(11, ""); // access
 					} else {
 						// directoryID and access are not based on the file in the system
 						stmt = con.prepareStatement(
 							"UPDATE pipefile " +
 						    "SET name = ?, type = ?, packageName = ?, description = ?, tags = ?, " +
-						    "location = ?, uri = ?, searchableText = ?, lastModified = ? " +
+						    "location = ?, uri = ?, lastModified = ? " +
 							"WHERE absolutePath = ?"
 						);
-						stmt.setString(1, name);
-						stmt.setString(2, type);
-						stmt.setString(3, packageName);
-						stmt.setString(4, description);
-						stmt.setString(5, tags);
-						stmt.setString(6, location);
-						stmt.setString(7, uri);
-						stmt.setString(8, searchableText);
-						stmt.setTimestamp(9, modified);
-						stmt.setString(10, absolutePath);
+						stmt.setString(1, pipe.name);
+						stmt.setString(2, pipe.type);
+						stmt.setString(3, pipe.packageName);
+						stmt.setString(4, pipe.description);
+						stmt.setString(5, pipe.tags);
+						stmt.setString(6, pipe.location);
+						stmt.setString(7, pipe.uri);
+						stmt.setTimestamp(8, fs_lastModified);
+						stmt.setString(9, pipe.absolutePath);
 					}
 					stmt.executeUpdate();
 	 		    }
@@ -415,17 +287,27 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param query what the user is searching for
 	 */
 	public Pipefile[] getSearchResults(String root, String query) throws Exception{
-		try {	
+		try {
+			// Convert to lower case so can test case insensitive
+			query = query.toLowerCase();
+			
 			Connection con = getDatabaseConnection();
 			int dirID = getDirectoryId(root);
 			PreparedStatement stmt = con.prepareStatement(
 				"SELECT * " +
 				"FROM pipefile " +
 				"WHERE directoryID = ? " +
-					"AND searchableText LIKE '%" + query + "%';" //DO NOT CHANGE
+					"AND (LCASE(name) LIKE '%" + query + "%' " +
+					     "OR LCASE(packageName) LIKE '%" + query + "%'" +
+					     "OR LCASE(description) LIKE '%" + query + "%'" +
+					     "OR LCASE(tags) LIKE '%" + query + "%')" 
+					//DO NOT CHANGE
 					//for some reason on my computer making later setString substitution
 					//was not producing the right result, i.e. not finding items in
 					//database. My guess the setString was not formatting correctly.
+					     
+					// setString should now have single quotes surrounding it
+					// Right now this code is subject to SQL injection, need to use setString
 			);
 			stmt.setInt(1, dirID);
 			//stmt.setString(2, "'%" + query + "%'");
@@ -460,7 +342,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		try
 		{
 			//parse
-			doc = parseXML(f);
+			doc = ServerUtils.parseXML(f);
 		}
 		catch(Exception e)
 		{
@@ -603,7 +485,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		try
 		{
 			//parse
-			doc = parseXML(dest_file);
+			doc = ServerUtils.parseXML(dest_file);
 		}
 		catch(Exception e)
 		{
