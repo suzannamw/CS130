@@ -14,6 +14,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -21,6 +22,11 @@ import edu.ucla.loni.client.FileService;
 import edu.ucla.loni.shared.*;
 
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
+
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
 
 @SuppressWarnings("serial")
 public class FileServiceImpl extends RemoteServiceServlet implements FileService {
@@ -409,18 +415,20 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param query what the user is searching for
 	 */
 	public Pipefile[] getSearchResults(String root, String query) throws Exception{
-		try {
-			int dirID = getDirectoryId(root);
-			
+		try {	
 			Connection con = getDatabaseConnection();
+			int dirID = getDirectoryId(root);
 			PreparedStatement stmt = con.prepareStatement(
 				"SELECT * " +
 				"FROM pipefile " +
 				"WHERE directoryID = ? " +
-					"AND searchableText LIKE ?"
+					"AND searchableText LIKE '%" + query + "%';" //DO NOT CHANGE
+					//for some reason on my computer making later setString substitution
+					//was not producing the right result, i.e. not finding items in
+					//database. My guess the setString was not formatting correctly.
 			);
 			stmt.setInt(1, dirID);
-			stmt.setString(2, "%" + query + "%");
+			//stmt.setString(2, "'%" + query + "%'");
 			ResultSet rs = stmt.executeQuery();
 			
 			return resultSetToPipefileArray(rs);
@@ -445,7 +453,21 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		//      rewrite the access file
 		//   Else
 		//      return
-		return;
+		File f = new File(pipe.absolutePath);
+		if (!f.exists() || !f.canRead())
+			return;
+		Document doc;
+		try
+		{
+			//parse
+			doc = parseXML(f);
+		}
+		catch(Exception e)
+		{
+			return;	//parseXML triggered exception
+		}
+		//TODO unknown pipe format
+		//TODO rewrite the access file
 	}
 	
 	/**
@@ -495,6 +517,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		//   Copy the file to the new destination
 		//     File must be changed update the package
 		//   Insert a row corresponding to this file in the database
+		// do we insert or update? isnt this file already in db?
 		return;	
 	}
 	
@@ -507,20 +530,146 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		// TODO
 		// For each filename
 		//   Call copyFile
-		return;
+		
+		for (String filename : filenames) {
+			copyFile(filename, packageName);
+		}
+	}
+	
+	/*
+	*  given an absolute path string, this function attempts to isolate actual name of file
+	*  @param s - absolute path of file
+	*/
+	protected String extractFileName(String s)
+	{
+		String res = "";
+		for( int i = s.length() - 1; i >= 0; i-- )
+		{
+			if( s.charAt(i) == File.pathSeparatorChar )
+			{
+				res = s.substring(i + 1, s.length());
+				break;
+			}
+		}
+		return res;
+	}
+	
+	/*
+	*  given an absolute path string, this function isolates the directory absolute address where
+	*  current file is placed
+	*  @param s - absolute path of file
+	*/
+	protected String extractDirName(String s)
+	{
+		String res = "";
+		for( int i = s.length() - 1; i >= 0; i-- )
+		{
+			if( s.charAt(i) == File.pathSeparatorChar )
+			{
+				res = s.substring(0, i);
+				break;
+			}
+		}
+		return res;
 	}
 	
 	/**
 	 *  Move a file from the server to the proper package
-	 *  @param filename absolute path of the file
-	 *  @param packageName absolute path of the package
+	 *  @param filename absolute path of the file = source path of file
+	 *  @param packageName absolute path of the package = destination folder path
 	 */
-	private void moveFile(String filenames, String packageName) throws Exception {
-		// TODO
-		// If the file exists
-		//   Move the file to the new destination
-		//     File must be changed to update the package
-		//   Update the row corresponding to this file in the database
+	//Need some clarification about packageName, right now I implemented it as destination folder abs path
+	public void moveFile(String filename, String packageName){
+		//find file in the database
+		File source_file = new File(filename);
+		//check that file exists
+		if( source_file.exists() == false )
+		{
+			return; //file does not exist => abort
+		}
+		//get destination directory path
+		File dir = new File(packageName);
+		//compose package name, so that every ' ' (i.e. space char) be replaced with underscore char
+		String formatted_package_name = extractFileName(packageName).replace(' ', '_');
+		//move the file
+		File dest_file = new File(dir, extractFileName(filename));
+		boolean success = source_file.renameTo(dest_file);
+		if( success == false )
+		{
+			return;	//for some reason file can not be moved => abort
+		}
+		//update XML
+		Document doc;
+		try
+		{
+			//parse
+			doc = parseXML(dest_file);
+		}
+		catch(Exception e)
+		{
+			return;	//parseXML triggered exception
+		}
+		//get list of nodes with tag_name = module
+		NodeList nl = doc.getElementsByTagName("module");
+		//loop thru all those nodes 
+		for( int i = 0; i < nl.getLength(); i++ )
+		{
+			//get node item
+			Node n = nl.item(i);
+			NamedNodeMap attr = n.getAttributes();
+			//get node's attribute = package
+			Node nodeAttr = attr.getNamedItem("package");
+			//set package value to formatted_package_name, which is currently dest_folder_path with white spaces replaced by underscore symbols
+			nodeAttr.setTextContent(formatted_package_name);
+		}
+		try
+		{
+			//save changes made to the file
+			//copied from <http://www.mkyong.com/java/how-to-modify-xml-file-in-java-dom-parser/>
+			TransformerFactory transformerFactory = TransformerFactory.newInstance();
+			Transformer transformer = transformerFactory.newTransformer();
+			DOMSource source = new DOMSource(doc);
+			StreamResult result = new StreamResult(new File(dest_file.getAbsolutePath()));
+			transformer.transform(source, result);
+			//get connection
+			Connection con = getDatabaseConnection();
+			//find the source file in pipefile table
+			PreparedStatement stmt = con.prepareStatement("SELECT * FROM pipefile WHERE absolutePath = ? AND directoryID = ?;");
+			stmt.setString(1, filename);
+			stmt.setInt(2, getDirectoryId(extractDirName(filename)));
+			ResultSet rs = stmt.executeQuery();
+			rs.next();
+			String arg_name = rs.getString(3);
+			String arg_type = rs.getString(4);
+			String arg_desc = rs.getString(6);
+			String arg_tags = rs.getString(7);
+			String arg_access = rs.getString(8);
+			String arg_seachable_text = rs.getString(11);
+			//insert moved_file in pipefile table
+			PreparedStatement stmt2 = con.prepareStatement("INSERT INTO pipefile VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);");
+			stmt2.setInt(1, getDirectoryId(dir.getAbsolutePath()));
+			stmt2.setString(2, dest_file.getAbsolutePath());
+			stmt2.setString(3, arg_name);
+			stmt2.setString(4, arg_type);
+			stmt2.setString(5, formatted_package_name);
+			stmt2.setString(6, arg_desc);
+			stmt2.setString(7, arg_tags);
+			stmt2.setString(8, arg_access);
+			stmt2.setString(9, "");//TODO location ?? not sure what location means, in original XML overview it says "pipeline://localhost//bin/program"
+			stmt2.setString(10, "");//TODO uri ?? same story with exception that URI does not even appear in XML template on XML_overview LONI web-page
+			stmt2.setString(11, arg_seachable_text);
+			stmt2.setTimestamp(12, new Timestamp(dest_file.lastModified()));
+			stmt2.executeUpdate();
+			//delete file from the pipefile table : [match file by absPath of file AND directoryID]
+			PreparedStatement stmt3 = con.prepareStatement("DELETE FROM pipefile WHERE absolutePath = ? AND directoryID = ?;");
+			stmt3.setString(1, filename);
+			stmt3.setInt(2, getDirectoryId(extractDirName(filename)));
+			stmt3.executeUpdate();
+		}
+		catch(Exception e)
+		{
+			//too bad... => abort
+		}
 		return;
 	}
 	
@@ -529,11 +678,10 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filenames absolute paths of the files
 	 *  @param packageName absolute path of the package
 	 */
-	public void moveFiles(String[] filenames, String packageName) throws Exception {
-		// TODO
-		// For each filename
-		//   Call moveFile
-		return;
+	public void moveFiles(String[] filenames, String packageName){
+		for (String filename : filenames) {
+			moveFile(filename, packageName);
+		}
 	}
 	
 	/**
