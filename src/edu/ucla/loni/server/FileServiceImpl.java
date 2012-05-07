@@ -453,7 +453,21 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		//      rewrite the access file
 		//   Else
 		//      return
-		return;
+		File f = new File(pipe.absolutePath);
+		if (!f.exists() || !f.canRead())
+			return;
+		Document doc;
+		try
+		{
+			//parse
+			doc = parseXML(f);
+		}
+		catch(Exception e)
+		{
+			return;	//parseXML triggered exception
+		}
+		//TODO unknown pipe format
+		//TODO rewrite the access file
 	}
 	
 	/**
