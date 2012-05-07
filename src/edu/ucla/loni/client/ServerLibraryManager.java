@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
+import com.google.gwt.http.client.URL;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
 import com.smartgwt.client.types.Alignment;
@@ -401,9 +403,6 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Updates ResultsTree based on what query is returned by the server
 	 */
 	private void treeResults(final String query){
-		// Clear resultsTree
-		resultsTree.removeList(resultsTree.getDescendants());
-		
 		if (query != null && query.length() >= 2){
 			fileServer.getSearchResults(
 	            rootDirectory,
@@ -414,6 +413,9 @@ public class ServerLibraryManager implements EntryPoint {
 			        }
 	
 			        public void onSuccess(Pipefile[] result) {
+			        	// Clear the ResultsTree
+			        	resultsTree.removeList(resultsTree.getDescendants());
+			        	
 			        	if (result != null){
 			        		for (Pipefile p : result){
 			        			if (pipes.containsKey(p.absolutePath) == false){
@@ -429,10 +431,12 @@ public class ServerLibraryManager implements EntryPoint {
 			        }
 			    }
 	        );
+		} else {
+			resultsTree.removeList(resultsTree.getDescendants());
 		}
 	}
 	
-	private void fileOperations(String[] selected){
+	private void fileOperations(final String[] selected){
 		clearWorkarea();
 		
 		// WorkareaTitle
@@ -446,6 +450,34 @@ public class ServerLibraryManager implements EntryPoint {
 		Button download = new Button("Download");
 		Button copy = new Button("Copy");
 		Button move = new Button("Move");
+		
+		remove.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event){
+				fileServer.removeFiles(
+					selected,
+			        new AsyncCallback<Void>() {
+			        	public void onFailure(Throwable caught) {
+					        error("Call to removeFiles failed");
+					    }
+			
+					    public void onSuccess(Void result){
+					    	// TODO, update the tree
+					    	basicInstructions();
+					    }
+					}
+				);
+			}
+		});
+		
+		download.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event){
+				// TODO
+				// Create the url based on the API to be determined
+				String filename = selected[0];
+				String url = "servlet/download?filename=" + URL.encode(filename);
+				Window.open(url, "downloadWindow", "");
+			}
+		});
 		
 		HLayout copyMoveButtons = new HLayout(10);
 		copyMoveButtons.setAlign(Alignment.CENTER);

@@ -5,20 +5,42 @@
          version="2.5"
          xmlns="http://java.sun.com/xml/ns/javaee">
 
-  <!-- Servlets -->
-  <servlet>
-    <servlet-name>fileServlet</servlet-name>
-    <servlet-class>edu.ucla.loni.server.FileServiceImpl</servlet-class>
-  </servlet>
+  	<!-- File Servlet (for RPCs) -->
+ 	<servlet>
+    	<servlet-name>fileServlet</servlet-name>
+    	<servlet-class>edu.ucla.loni.server.FileServiceImpl</servlet-class>
+  	</servlet>
   
-  <servlet-mapping>
-    <servlet-name>fileServlet</servlet-name>
-    <url-pattern>/serverlibrarymanager/file</url-pattern>
-  </servlet-mapping>
+  	<servlet-mapping>
+    	<servlet-name>fileServlet</servlet-name>
+    	<url-pattern>/serverlibrarymanager/file</url-pattern>
+  	</servlet-mapping>
   
-  <!-- Default page to serve -->
-  <welcome-file-list>
-    <welcome-file>ServerLibraryManager.html</welcome-file>
-  </welcome-file-list>
+    <!-- Download Servlet -->
+  	<servlet> 
+        <servlet-name>downloadServlet</servlet-name> 
+        <servlet-class>edu.ucla.loni.server.Download</servlet-class> 
+	</servlet> 
+	
+	<servlet-mapping> 
+        <servlet-name>downloadServlet</servlet-name> 
+        <url-pattern>/serverlibrarymanager/servlet/download</url-pattern> 
+	</servlet-mapping> 
+	
+	<!-- Upload Servlet -->
+  	<servlet> 
+        <servlet-name>uploadServlet</servlet-name> 
+        <servlet-class>edu.ucla.loni.server.Upload</servlet-class> 
+	</servlet> 
+	
+	<servlet-mapping> 
+        <servlet-name>uploadServlet</servlet-name> 
+        <url-pattern>/serverlibrarymanager/servlet/upload</url-pattern> 
+	</servlet-mapping> 
+  
+	 <!-- Default page to serve -->
+	 <welcome-file-list>
+	 	<welcome-file>ServerLibraryManager.html</welcome-file>
+	 </welcome-file-list>
 
 </web-app>

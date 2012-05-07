@@ -1,0 +1,13 @@
+How to pack this GWT project (while using Eclipse) into a .war file to be deployed for a tomcat server
+
+Right click on the "src" folder inside the project
+	Select "Export"
+		Select "Java" > "JAR File"	
+		Make sure only the src folder is checked in the next window
+	    Select the export destination
+	    	<project_folder>/war/WEB-INF/lib/serverLibraryManager.jar
+	    	
+Right click on warBuilder.xml
+	Select "Run as" > "Ant Build"
+	
+serverLibraryManager.war will be found in <project_folder>
