@@ -4,6 +4,8 @@ import edu.ucla.loni.shared.*;
 
 import java.util.LinkedHashMap;
 
+
+
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.http.client.URL;
@@ -567,6 +569,14 @@ public class ServerLibraryManager implements EntryPoint {
 		clearWorkarea();
 		
 		Pipefile pipe = pipes.get(absolutePath);
+
+		Label name = new Label("Name: " + pipe.name);
+		Label packageName = new Label("Package: " + pipe.packageName);
+		Label description = new Label("Description: " + pipe.description);
+		workarea.addMember(name);
+		workarea.addMember(packageName);
+		workarea.addMember(description);
+		
 		
 		// TODO display properties
 	}
