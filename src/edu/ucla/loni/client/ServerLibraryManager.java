@@ -4,8 +4,6 @@ import edu.ucla.loni.shared.*;
 
 import java.util.LinkedHashMap;
 
-
-
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.http.client.URL;
@@ -448,6 +446,13 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(workareaTitle);
 		
 		// Actions
+		final ComboBoxItem combo = new ComboBoxItem();
+		combo.setTitle("To Package"); 
+		combo.setValueMap(packages);
+		
+		DynamicForm form = new DynamicForm();
+		form.setItems(combo);		
+		
 		Button remove = new Button("Remove");
 		Button download = new Button("Download");
 		Button copy = new Button("Copy");
@@ -455,19 +460,16 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		remove.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				fileServer.removeFiles(
-					selected,
-			        new AsyncCallback<Void>() {
-			        	public void onFailure(Throwable caught) {
-					        error("Call to removeFiles failed");
-					    }
-			
-					    public void onSuccess(Void result){
-					    	// TODO, update the tree
-					    	basicInstructions();
-					    }
-					}
-				);
+				fileServer.removeFiles(selected, new AsyncCallback<Void>() {
+		        	public void onFailure(Throwable caught) {
+				        error("Call to removeFiles failed");
+				    }
+		
+				    public void onSuccess(Void result){
+				    	// TODO, update the tree
+				    	basicInstructions();
+				    }
+				});
 			}
 		});
 		
@@ -481,17 +483,46 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
 		
+		copy.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event){
+				fileServer.copyFiles(selected, combo.getDisplayValue(), new AsyncCallback<Void>() {
+		        	public void onFailure(Throwable caught) {
+				        error("Call to copyFiles failed");
+				    }
+		
+				    public void onSuccess(Void result){
+				    	clearWorkarea();
+				    	// TODO, update the tree, display success message 
+				    }
+				});
+			}
+		});
+		
+		//added functionality to move button
+		//right now if folder (in the tree view)  gets selected new dialog menu gets displayed that
+		//alows to move/remove/copy/download.
+		//the handler below implements moving of all files within selected folder to another.
+		//The destination is determined by the combobox that selects packages
+		move.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event){
+				fileServer.moveFiles(selected, combo.getDisplayValue(), new AsyncCallback<Void>() {
+					public void onFailure(Throwable caught) {
+				        error("Call to moveFiles failed");
+				    }
+		
+				    public void onSuccess(Void result){
+				    	clearWorkarea();
+				    	// TODO, update the tree, display success message 
+				    }
+				});
+			}
+		});
+		
+		
 		HLayout copyMoveButtons = new HLayout(10);
 		copyMoveButtons.setAlign(Alignment.CENTER);
 		copyMoveButtons.addMember(copy);
 		copyMoveButtons.addMember(move);
-		
-		ComboBoxItem combo = new ComboBoxItem();
-		combo.setTitle("To Package"); 
-		combo.setValueMap(packages);
-		
-		DynamicForm form = new DynamicForm();
-		form.setItems(combo);		
 		
 		VLayout copyMoveLayout = new VLayout(5);
 		copyMoveLayout.setPadding(5);
@@ -531,34 +562,6 @@ public class ServerLibraryManager implements EntryPoint {
 		selectedTitle.setHeight(20);
 		selectedTitle.setStyleName("workarea-title");
 		workarea.addMember(selectedTitle);
-		
-		//added functionality to move button
-		//right now if folder (in the tree view)  gets selected new dialog menu gets displayed that
-		//alows to move/remove/copy/download.
-		//the handler below implements moving of all files within selected folder to another.
-		//The destination is determined by the combobox that selects packages
-		move.addClickHandler(new ClickHandler() {
-			public void onClick(ClickEvent event){
-				fileServer.moveFiles(
-					selected,
-					combo.getDisplayValue(),
-			        new AsyncCallback<Void>() {
-			        	public void onFailure(Throwable caught) {
-					        error("Call to removeFiles failed");
-					    }
-			
-					    public void onSuccess(Void result){
-					    	// TODO, update the tree
-					    	clearWorkarea();
-							// TODO, add actual basic instructions
-							//workarea.addMember(new Label(result));
-					    	//workarea.addMember(new Label("onSuccess..."));
-					    	//basicInstructions();
-					    }
-					}
-				);
-			}
-		});
 		
 		ListGrid grid = new ListGrid();
 		grid.setWidth(600);
