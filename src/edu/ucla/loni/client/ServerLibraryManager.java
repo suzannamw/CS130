@@ -532,6 +532,34 @@ public class ServerLibraryManager implements EntryPoint {
 		selectedTitle.setStyleName("workarea-title");
 		workarea.addMember(selectedTitle);
 		
+		//added functionality to move button
+		//right now if folder (in the tree view)  gets selected new dialog menu gets displayed that
+		//alows to move/remove/copy/download.
+		//the handler below implements moving of all files within selected folder to another.
+		//The destination is determined by the combobox that selects packages
+		move.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event){
+				fileServer.moveFiles(
+					selected,
+					combo.getDisplayValue(),
+			        new AsyncCallback<Void>() {
+			        	public void onFailure(Throwable caught) {
+					        error("Call to removeFiles failed");
+					    }
+			
+					    public void onSuccess(Void result){
+					    	// TODO, update the tree
+					    	clearWorkarea();
+							// TODO, add actual basic instructions
+							//workarea.addMember(new Label(result));
+					    	//workarea.addMember(new Label("onSuccess..."));
+					    	//basicInstructions();
+					    }
+					}
+				);
+			}
+		});
+		
 		ListGrid grid = new ListGrid();
 		grid.setWidth(600);
 		ListGridField nField = new ListGridField("name", "Name");  
