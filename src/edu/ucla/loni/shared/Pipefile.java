@@ -17,4 +17,16 @@ public class Pipefile implements Serializable {
 	// TODO input / output 		- For Data
 	public String location;		// - For Modules
 	public String uri;			// - For Modules and Workflows
+	
+	public Pipefile(){
+		absolutePath = "";
+		name = "";
+		type = "";
+		packageName = "";
+		description = "";
+		tags = "";
+		access = "";
+		location = "";
+		uri = "";
+	}
 }

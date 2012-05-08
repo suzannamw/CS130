@@ -10,19 +10,12 @@ import java.sql.Timestamp;
 
 import java.util.ArrayList;
 
-import org.w3c.dom.Document;
-import org.w3c.dom.NamedNodeMap;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-
 import edu.ucla.loni.client.FileService;
 import edu.ucla.loni.shared.*;
 
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 
-import javax.xml.transform.*;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
+import org.jdom2.Document;
 
 
 @SuppressWarnings("serial")
@@ -325,39 +318,34 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Updates the file on the server
 	 *  @param pipe Pipefile representing the updated file
 	 */
-	public void updateFile(Pipefile pipe){
-		// TODO
-		// Read the filename
-		//   If the file exists
-		//      read, parse the file, update the needed fields
-		//      if the package changed update the name, move the file
-		//      update the row corresponding to this file in the database
-		//      rewrite the access file
-		//   Else
-		//      return
-		File f = new File(pipe.absolutePath);
-		if (!f.exists() || !f.canRead())
-			return;
-		Document doc;
-		try
-		{
-			//parse
-			doc = ServerUtils.parseXML(f);
+	public void updateFile(Pipefile pipe) throws Exception{
+		try {
+			// Update the XML
+			File file = new File(pipe.absolutePath);
+			if (!file.exists() || !file.canRead())
+				return;
+			
+			Document doc = ServerUtils.parseXML(file);
+			doc = ServerUtils.update(doc, pipe, true);
+			ServerUtils.write(file, doc);
+			
+			// TODO if packageChanged, move file
+			// TODO update the database
+			// TODO rewrite the access file
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
 		}
-		catch(Exception e)
-		{
-			return;	//parseXML triggered exception
-		}
-		//TODO unknown pipe format
-		//TODO rewrite the access file
+
 	}
 	
 	/**
 	 *  Removes a file from the server
 	 *  @param filename absolute path of the file
 	 */
-	private void removeFile(String Filename) throws Exception {		
-		File f = new File(Filename);
+	private void removeFile(Pipefile pipe) throws Exception {		
+		File f = new File(pipe.absolutePath);
 		if (f.exists()){
 			f.delete(); // TODO: check return status
 			Connection con = getDatabaseConnection();
@@ -366,7 +354,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				"DELETE FROM pipefile " +
 				"WHERE absolutePath = ?" 		
 			);
-			stmt.setString(1, Filename);
+			stmt.setString(1, pipe.absolutePath);
 			stmt.executeUpdate();
 			//TODO: update access restrictions file
 		}
@@ -377,12 +365,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filenames absolute paths of the files
 	 * @throws SQLException 
 	 */
-	public void removeFiles(String filenames[]) throws Exception {
+	public void removeFiles(Pipefile[] pipes) throws Exception {
 		try {
-			for (String filename : filenames) {
-				removeFile(filename);
+			for (Pipefile pipe : pipes) {
+				removeFile(pipe);
 			}
-		} catch (Exception e) {
+		} 
+		catch (Exception e) {
 			e.printStackTrace();
 			throw new Exception(e.getMessage());
 		}
@@ -393,7 +382,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filename absolute path of the file
 	 *  @param packageName absolute path of the package
 	 */
-	private void copyFile(String filename, String packageName) throws Exception {
+	private void copyFile(Pipefile pipe, String packageName) throws Exception {
 		// TODO
 		// If the file exists
 		//   Copy the file to the new destination
@@ -408,13 +397,15 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filenames absolute paths of the files
 	 *  @param packageName absolute path of the package
 	 */
-	public void copyFiles(String[] filenames, String packageName) throws Exception {
-		// TODO
-		// For each filename
-		//   Call copyFile
-		
-		for (String filename : filenames) {
-			copyFile(filename, packageName);
+	public void copyFiles(Pipefile[] pipes, String packageName) throws Exception {		
+		try {
+			for (Pipefile pipe : pipes) {
+				copyFile(pipe, packageName);
+			}
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
 		}
 	}
 	
@@ -461,167 +452,82 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Move a file from the server to the proper package
 	 *  @param filename absolute path of the file = source path of file
 	 *  @param packageName is the name of the package as it appears in the Database in column PACKAGENAME
+	 *  @throws Exception 
 	 */
-	public void moveFile(String filename, String packageName){
-		Connection con = null;
-		try
-		{
-			//get connection
-			con = getDatabaseConnection();
-		}
-		catch(Exception e)
-		{
-			return; //abort
-		}
-		//find file in the database
-		File source_file = new File(filename);
-		//check that file exists
-		if( source_file.exists() == false )
-		{
-			return; //file does not exist => abort
-		}
-		String root = extractDirName(extractDirName(extractDirName(filename)));	// typical path address = root/PACKAGE_NAME/(module OR group OR data)/file_name.pipe
-		String file_type = "", pkg_name = "";
-		try
-		{
-			PreparedStatement stmt = con.prepareStatement("SELECT * FROM pipefile WHERE absolutePath = ? AND directoryID = ?;");
-			stmt.setString(1, filename);
-			//int tdirID = getDirectoryId(filename);
-			int tdirID = getDirectoryId(root);
-			stmt.setInt(2, tdirID);
-			ResultSet rs = stmt.executeQuery();
-			rs.next();
-			String arg_type = rs.getString(5);
-			if(arg_type.compareToIgnoreCase("modules") == 0)
-				file_type = "Modules";
-			else if(arg_type.compareToIgnoreCase("workflows") == 0)
-				file_type = "Groups";
-			else if(arg_type.compareToIgnoreCase("data") == 0)
-				file_type = "Data";
-			//My initial thought was that package_name is related to directory_name by the following pattern:
-			//replace all white space characters (' ') by underscore characters ('_') and that is your directory_name. But it does not work...
-			//Proponents for the rule : "JHU DTI" package => "JHU_DTI" directory_name
-			//Opponents for the rule : "Automatic Registration Toolbox" package => "AutomaticRegistrationToolbox"
-			//In addition package names do not even spell out the same all the time
-			//check out Diffusion ToolKit package (make a note of upper case 'K' in word ToolKit)
-			//now look at the directory name : Diffusion_Toolkit (kit => k is lower case)
-			//examples of opponents are rather numerous, so instead of hardcoding or trying to find heuristic behind it, I just will extract
-			//name of directory from absolute path by first searching existing packageName, which suppose to have at least 1 file in it
-			//or else I would not be able to get the absolute path...
-			//then I will extract the directory name from it. If anyone complains, I am open to negotiations on this minor issue.
-			PreparedStatement stmt2 = con.prepareStatement("SELECT * FROM pipefile WHERE packagename = ?;");
-			stmt2.setString(1, packageName);
-			ResultSet rs2 = stmt2.executeQuery();
-			rs2.next();
-			pkg_name = extractFileName(extractDirName(extractDirName(rs2.getString(2))));
-		}
-		catch(Exception e)
-		{
-			return; //abort
-		}
-		String dir_str = root + "\\" + pkg_name + "\\" + file_type;
-		//get destination directory path
-		File dir = new File(dir_str);
-		if( dir.exists() == false )
-		{
+	public void moveFile(Pipefile pipe, String packageName) throws Exception{		
+		// Get destination directory, create if necessary
+		String root = extractDirName(extractDirName(extractDirName(pipe.absolutePath)));
+		String filename = extractFileName(pipe.absolutePath);
+		
+		String dest_dir = root + File.separatorChar + packageName.replace(" " , "_") + File.separatorChar + pipe.type;
+		
+		File dir = new File(dest_dir);
+		if(dir.exists() == false){
 			dir.mkdir();
 		}
-		//move the file
-		File dest_file = new File(dir, extractFileName(filename));
+		
+		String oldAbsolutePath = pipe.absolutePath;
+		String newAbsolutePath = dest_dir + File.separatorChar + filename;
+		
+		// Move the file
+		File source_file = new File(oldAbsolutePath);
+		File dest_file = new File(newAbsolutePath);
+		
 		boolean success = source_file.renameTo(dest_file);
-		if( success == false )
-		{
-			return;	//for some reason file can not be moved => abort
+		if(success == false) {
+			throw new Exception("File could not be moved");
 		}
-		//update XML
-		Document doc;
-		try
-		{
-			//parse
-			doc = ServerUtils.parseXML(dest_file);
-		}
-		catch(Exception e)
-		{
-			return;	//parseXML triggered exception
-		}
-		//get list of nodes with tag_name = module
-		NodeList nl_module = doc.getElementsByTagName("module");
-		NodeList nl_moduleGroup = doc.getElementsByTagName("moduleGroup");
-		//loop thru all those nodes 
-		for( int i = 0; i < nl_module.getLength(); i++ )
-		{
-			//get node item
-			Node n = nl_module.item(i);
-			NamedNodeMap attr = n.getAttributes();
-			//get node's attribute = package
-			Node nodeAttr = attr.getNamedItem("package");
-			//set package value to formatted_package_name, which is currently dest_folder_path with white spaces replaced by underscore symbols
-			nodeAttr.setTextContent(packageName);
-		}
-		for( int i = 0; i < nl_moduleGroup.getLength(); i++ )
-		{
-			Node n = nl_moduleGroup.item(i);
-			NamedNodeMap  attr = n.getAttributes();
-			Node nodeAttr = attr.getNamedItem("package");
-			nodeAttr.setTextContent(packageName);
-		}
-		try
-		{
-			//save changes made to the file
-			//copied from <http://www.mkyong.com/java/how-to-modify-xml-file-in-java-dom-parser/>
-			TransformerFactory transformerFactory = TransformerFactory.newInstance();
-			Transformer transformer = transformerFactory.newTransformer();
-			DOMSource source = new DOMSource(doc);
-			StreamResult result = new StreamResult(new File(dest_file.getAbsolutePath()));
-			transformer.transform(source, result);
-			//find the source file in pipefile table
-			PreparedStatement stmt = con.prepareStatement("SELECT * FROM pipefile WHERE absolutePath = ? AND directoryID = ?;");
-			stmt.setString(1, filename);
-			stmt.setInt(2, getDirectoryId(root));
-			ResultSet rs = stmt.executeQuery();
-			rs.next();
-			String arg_name = rs.getString(4);
-			String arg_type = rs.getString(5);
-			String arg_desc = rs.getString(7);
-			String arg_tags = rs.getString(8);
-			String arg_loc = rs.getString(9);
-			String arg_uri = rs.getString(10);
-			String arg_access = rs.getString(11);
-			//insert moved_file in pipefile table
-			PreparedStatement stmt2 = con.prepareStatement("INSERT INTO pipefile VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);");
-			stmt2.setInt(1, getDirectoryId(root));
-			stmt2.setString(2, dest_file.getAbsolutePath());
-			stmt2.setTimestamp(3, new Timestamp(dest_file.lastModified()));//12
-			stmt2.setString(4, arg_name);//3
-			stmt2.setString(5, arg_type);//4
-			stmt2.setString(6, packageName);//5
-			stmt2.setString(7, arg_desc);//6
-			stmt2.setString(8, arg_tags);//7
-			stmt2.setString(9, arg_loc);
-			stmt2.setString(10, arg_uri);
-			stmt2.setString(11, arg_access);//9
-			stmt2.executeUpdate();
-			//delete file from the pipefile table : [match file by absPath of file AND directoryID]
-			PreparedStatement stmt3 = con.prepareStatement("DELETE FROM pipefile WHERE absolutePath = ? AND directoryID = ?;");
-			stmt3.setString(1, filename);
-			stmt3.setInt(2, getDirectoryId(root));
-			stmt3.executeUpdate();
-		}
-		catch(Exception e)
-		{
-			//too bad... => abort
-		}
-		return;
+
+		// Something to check with Petros about
+		
+		//My initial thought was that package_name is related to directory_name by the following pattern:
+		//replace all white space characters (' ') by underscore characters ('_') and that is your directory_name. But it does not work...
+		//Proponents for the rule : "JHU DTI" package => "JHU_DTI" directory_name
+		//Opponents for the rule : "Automatic Registration Toolbox" package => "AutomaticRegistrationToolbox"
+		//In addition package names do not even spell out the same all the time
+		//check out Diffusion ToolKit package (make a note of upper case 'K' in word ToolKit)
+		//now look at the directory name : Diffusion_Toolkit (kit => k is lower case)
+		//examples of opponents are rather numerous, so instead of hardcoding or trying to find heuristic behind it, I just will extract
+		//name of directory from absolute path by first searching existing packageName, which suppose to have at least 1 file in it
+		//or else I would not be able to get the absolute path...
+		//then I will extract the directory name from it. If anyone complains, I am open to negotiations on this minor issue.
+		
+		// Update XML
+		Document doc = ServerUtils.parseXML(dest_file);
+		
+		pipe.packageName = packageName;
+		doc = ServerUtils.update(doc, pipe, true);
+		
+		ServerUtils.write(dest_file, doc);
+		
+		// Update Database
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"UPDATE pipefile " +
+			"SET absolutePath = ? AND packageName = ? " +
+			"WHERE absolutePath = ?" 		
+		);
+		stmt.setString(1, oldAbsolutePath);
+		stmt.setString(2, packageName);
+		stmt.setString(3, newAbsolutePath);
+		stmt.executeUpdate();
 	}
 	
 	/**
 	 *  Moves files from the server to the proper package
 	 *  @param filenames absolute paths of the files
 	 *  @param packageName absolute path of the package
+	 *  @throws Exception 
 	 */
-	public void moveFiles(String[] filenames, String packageName){
-		for (String filename : filenames) {
-			moveFile(filename, packageName);
+	public void moveFiles(Pipefile[] pipes, String packageName) throws Exception{
+		try {
+			for (Pipefile pipe : pipes) {
+				moveFile(pipe, packageName);
+			}
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
 		}
 	}
 	

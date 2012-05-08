@@ -112,13 +112,6 @@ public class ServerLibraryManager implements EntryPoint {
 	private String[] packages;
 	
 	/**
-	 *   Set in: selectPipefileHandler 
-	 *   <br>
-	 *   Used in: fileOperations
-	 */
-	private String[] selectedFiles;
-	
-	/**
 	 *   String groupName => Group g
 	 *   <p>
 	 *   Set in viewGroups
@@ -156,11 +149,12 @@ public class ServerLibraryManager implements EntryPoint {
 				viewFile(clicked.getAttribute("absolutePath"));
 			}
 			else {
-				selectedFiles = new String[selected.length];
+				Pipefile[] selectedPipes = new Pipefile[selected.length];
 				for (int i = 0; i < selected.length; i++){
-					selectedFiles[i] = selected[i].getAttribute("absolutePath");
+					String absolutePath = selected[i].getAttribute("absolutePath");
+					selectedPipes[i] = pipes.get(absolutePath);
 				}
-				fileOperations(selectedFiles);
+				fileOperations(selectedPipes);
 			}
 		}
 	};
@@ -436,7 +430,7 @@ public class ServerLibraryManager implements EntryPoint {
 		}
 	}
 	
-	private void fileOperations(final String[] selected){
+	private void fileOperations(final Pipefile[] selected){
 		clearWorkarea();
 		
 		// WorkareaTitle
@@ -477,7 +471,7 @@ public class ServerLibraryManager implements EntryPoint {
 			public void onClick(ClickEvent event){
 				// TODO
 				// Create the url based on the API to be determined
-				String filename = selected[0];
+				String filename = selected[0].absolutePath;
 				String url = "servlet/download?filename=" + URL.encode(filename);
 				Window.open(url, "downloadWindow", "");
 			}
@@ -573,7 +567,7 @@ public class ServerLibraryManager implements EntryPoint {
 		ListGridRecord[] records = new ListGridRecord[selected.length];
 		
 		for(int i = 0; i < selected.length; i++){
-			Pipefile pipe = pipes.get(selected[i]);
+			Pipefile pipe = selected[i];
 			
 			ListGridRecord record = new ListGridRecord();
 			record.setAttribute("name", pipe.name);
@@ -608,17 +602,6 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(packageName);
 		workarea.addMember(description);
 		
-		
-		// TODO display properties
-	}
-	
-	/**
-	 *  Updates the workarea with a form to edit the file
-	 */
-	private void editFile(String absolutePath){
-		clearWorkarea();
-		
-		Pipefile pipe = pipes.get(absolutePath);
 		
 		// TODO display properties
 	}
