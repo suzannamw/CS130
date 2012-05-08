@@ -427,7 +427,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		String res = "";
 		for( int i = s.length() - 1; i >= 0; i-- )
 		{
-			if( s.charAt(i) == File.pathSeparatorChar )
+			if( s.charAt(i) == File.separatorChar ) //http://docs.oracle.com/javase/1.4.2/docs/api/java/io/File.html#separatorChar
+				//File.pathSeparatorChar = ';' and File.separatorChar = '/' OR '\' depending on OS
 			{
 				res = s.substring(i + 1, s.length());
 				break;
@@ -446,7 +447,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		String res = "";
 		for( int i = s.length() - 1; i >= 0; i-- )
 		{
-			if( s.charAt(i) == File.pathSeparatorChar )
+			if( s.charAt(i) == File.separatorChar ) //http://docs.oracle.com/javase/1.4.2/docs/api/java/io/File.html#separatorChar
+				//File.pathSeparatorChar = ';' and File.separatorChar = '/' OR '\' depending on OS
 			{
 				res = s.substring(0, i);
 				break;
