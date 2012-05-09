@@ -1,14 +1,14 @@
 package edu.ucla.loni.server;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.util.List;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.input.SAXBuilder;
+import org.jdom2.output.XMLOutputter;
 
 import edu.ucla.loni.shared.Pipefile;
 
@@ -17,53 +17,26 @@ public class ServerUtils {
 	 * Parse an XML file into a Document
 	 */
 	public static Document parseXML(File pipe) throws Exception{
-		DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-		DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-		Document doc = dBuilder.parse(pipe);
+		SAXBuilder builder = new SAXBuilder();
+		Document doc = (Document) builder.build(pipe);
 		
 		return doc;
 	}
 	
 	/** 
-	 * Get the text value of an element
+	 * Get the text value of children separated by a common and space
 	 */
-	private static String getElementValue(Element textElement){
-		Node textNode = textElement.getFirstChild();
-		if (textNode != null){
-			String value = textNode.getNodeValue();
-			if (value != null){
-				return value;
-			}
-		}
-		
-		return "";
-	}
-	
-	/** 
-	 * Get a comma separated list of the textual value of children within an element
-	 * <p>
-	 * Example:<br>
-	 * {@literal<e><child>a</child><child>b</child></e>}<br>
-	 * returns "a, b"
-	 */
-	private static String getChildValues(Element e, String child){
-		NodeList children = e.getChildNodes();
-		int length = children.getLength();
+	private static String getChildrenText(Element element, String childName){
+		List<Element> children = element.getChildren(childName);
+		int length = children.size();
 		
 		String ret = "";
 		for (int i = 0; i < length; i++){
-			Node childNode = children.item(i);
+			Element child = children.get(i);
 			
-			if (childNode.getNodeType() == Node.ELEMENT_NODE){
-				Element childElement = (Element) childNode;
-				
-				if (child.equals(childElement.getNodeName())){
-					String value = getElementValue(childElement);
-					
-					if (value != ""){
-						ret += value + ", ";
-					}
-				}
+			String text = child.getText();
+			if (text != ""){
+				ret += text + ", ";
 			}
 		}
 		
@@ -76,25 +49,24 @@ public class ServerUtils {
 	}
 	
 	/** 
-	 * Get a textual value of a child within an element
+	 * Get the main element (who has the attributes and children we care about)
+	 * from a document
 	 */
-	private static String getChildValue(Element e, String child){
-		NodeList children = e.getChildNodes();
-		int length = children.getLength();
+	private static Element getMainElement(Document doc) throws Exception{
+		Element pipeline = doc.getRootElement();
 		
-		for (int i = 0; i < length; i++){
-			Node childNode = children.item(i);
-			
-			if (childNode.getNodeType() == Node.ELEMENT_NODE){
-				Element childElement = (Element) childNode;
-				
-				if (child.equals(childElement.getNodeName())){
-					return getElementValue(childElement);
-				}
+		Element moduleGroup = pipeline.getChild("moduleGroup");
+		if (moduleGroup == null){
+			throw new Exception("Pipefile does not have moduleGroup");
+		}
+		else {
+			List<Element> children = moduleGroup.getChildren();
+			if (children.size() == 1){
+				return children.get(0);
+			} else {
+				return moduleGroup;
 			}
 		}
-		
-		return "";
 	}
 	
 	/**
@@ -105,36 +77,26 @@ public class ServerUtils {
 			Pipefile pipe = new Pipefile();
 			
 			Document doc = parseXML(file);
+			Element main = getMainElement(doc);
 			
-			NodeList group = doc.getElementsByTagName("moduleGroup");
-			NodeList data = doc.getElementsByTagName("dataModule");
-			NodeList modules = doc.getElementsByTagName("module");
-			
-			Node mainNode; // Node which holds the attributes we care out
-			
-			if (group.getLength() >= 1 && data.getLength() + modules.getLength() > 2){
-				mainNode = group.item(0);
-				pipe.type = "Workflows";
-			} else if (data.getLength() == 1){
-				mainNode = data.item(0);
+			String mainName = main.getName();
+			if (mainName == "dataModule"){
 				pipe.type = "Data";
-			} else if (modules.getLength() == 1){
-				mainNode = modules.item(0);
+			} else if (mainName == "module"){
 				pipe.type = "Modules";
+			} else if (mainName == "moduleGroup"){
+				pipe.type = "Workflow";
 			} else {
-				return null;
+				throw new Exception("Pipefile has unknown type");
 			}
-	    
-			// Convert to Element
-			Element mainElement = (Element) mainNode;
 			
 			// General properties
 			pipe.absolutePath = file.getAbsolutePath();
 			
-			pipe.name = mainElement.getAttribute("name");
-			pipe.packageName = mainElement.getAttribute("package");
-			pipe.description = mainElement.getAttribute("description");
-			pipe.tags = getChildValues(mainElement, "tag");
+			pipe.name = main.getAttributeValue("name", "");
+			pipe.packageName = main.getAttributeValue("package", "");
+			pipe.description = main.getAttributeValue("description", "");
+			pipe.tags = getChildrenText(main, "tag");
 			
 			// Get type specific properties			
 			if (pipe.type == "Data"){
@@ -144,11 +106,11 @@ public class ServerUtils {
 			}
 			
 			if (pipe.type == "Modules"){
-				pipe.location = mainElement.getAttribute("location");
+				pipe.location = main.getAttributeValue("location", "");
 			} 
 			
 			if (pipe.type == "Modules" || pipe.type == "Workflows"){
-				pipe.uri = getChildValue(mainElement, "uri");
+				pipe.uri = main.getChildText("uri");
 			}
 			
 			return pipe;
@@ -160,21 +122,79 @@ public class ServerUtils {
 	
 	/**
 	 * Updates a Document (XML file) with all the attributes from a Pipefile
+	 * @throws Exception 
 	 */
-	public static Document update(Document doc, Pipefile pipe){
-		// TODO
-		// Update the name
-		// Update the packageName
-		// Update the description
-		// Update the tags
-		return null;
+	public static Document update(Document doc, Pipefile pipe, boolean packageOnly) throws Exception{
+		Element main = getMainElement(doc);
+		
+		main.setAttribute("package", pipe.packageName);
+		
+		if (!packageOnly){
+			// Update name (attribute)
+			main.setAttribute("name", pipe.name);
+			// Update description (attribute)
+			main.setAttribute("description", pipe.description);
+			
+			// Update the tags (children)
+			main.removeChildren("tag"); // Remove all old tags
+			String tags = pipe.tags;
+			while (tags != ""){
+				String tag = "";
+				
+				// Find a comma, Set tag to substring, set tags to remainder			
+				int commaIndex = tags.indexOf(",");
+				if (commaIndex == -1){
+					tag = tags;
+					tags = "";
+				} else {
+					tag = tags.substring(0, commaIndex);
+					tags = tags.substring(commaIndex);
+				}
+				
+				// Create and add child				
+				Element child = new Element("uri");
+				child.setText(tag);
+				main.addContent(child);
+			}
+		
+			// Update input/output (children)
+			if (pipe.type == "Data"){	
+				// TODO
+			}
+			
+			// Update location (attribute)
+			if (pipe.type == "Modules"){
+				main.setAttribute("location", pipe.location);
+			}
+			
+			// Update uri (child)
+			if (pipe.type == "Modules" || pipe.type == "Workflows"){
+				Element child = main.getChild("uri");
+				
+				// If child not present, create
+				if (child == null){
+					child = new Element("uri");
+					main.addContent(child);
+				}
+				
+				child.setText(pipe.uri);
+			}
+		}
+		
+		return doc;
 	}
 	
 	/**
 	 * Write a document (XML file) to a particular absolute path
+	 * @throws Exception 
 	 */
-	public static void write(String absolutePath, Document doc){
-		//TODO
-		return;
+	public static void write(File file, Document doc) throws Exception{
+		XMLOutputter xmlOut = new XMLOutputter();
+		FileOutputStream fileOut = new FileOutputStream(file);
+		
+		xmlOut.output(doc, fileOut);
+		
+		fileOut.flush();
+		fileOut.close();
 	}
 }
