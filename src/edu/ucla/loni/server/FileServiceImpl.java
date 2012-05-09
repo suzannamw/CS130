@@ -36,6 +36,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	private Connection getDatabaseConnection() throws Exception {
 		if (db_connection == null){
+			Class.forName("org.hsqldb.jdbcDriver");
 			db_connection = DriverManager.getConnection(db_name, db_username, db_password);
 		}
 		
