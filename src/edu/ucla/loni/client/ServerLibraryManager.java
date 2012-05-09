@@ -22,6 +22,7 @@ import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
 import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
 import com.smartgwt.client.widgets.form.fields.FormItem;
+import com.smartgwt.client.widgets.form.fields.TextAreaItem;
 import com.smartgwt.client.widgets.form.fields.TextItem;
 import com.smartgwt.client.widgets.form.fields.events.ChangedEvent;
 import com.smartgwt.client.widgets.form.fields.events.ChangedHandler;
@@ -568,17 +569,69 @@ public class ServerLibraryManager implements EntryPoint {
 	private void viewFile(String absolutePath){
 		clearWorkarea();
 		
-		Pipefile pipe = pipes.get(absolutePath);
-
-		Label name = new Label("Name: " + pipe.name);
-		Label packageName = new Label("Package: " + pipe.packageName);
-		Label description = new Label("Description: " + pipe.description);
-		workarea.addMember(name);
-		workarea.addMember(packageName);
-		workarea.addMember(description);
+		Pipefile pipe = pipes.get(absolutePath);	
 		
 		
-		// TODO display properties
+		DynamicForm form = new DynamicForm();
+		form.setCanEdit(false);
+		TextItem name = new TextItem();
+		name.setTitle("Name");
+		name.setName("name");
+		//items[0] = name;
+		
+		TextItem packageName = new TextItem();
+		packageName.setTitle("Package");
+		packageName.setName("package");
+		//items[1] = packageName;
+		
+		TextItem type = new TextItem();
+		type.setTitle("Type");
+		type.setName("type");
+		
+		TextItem location = new TextItem();
+		location.setTitle("Location");
+		location.setName("location");
+		location.setWidth(400);
+		
+		TextItem uri = new TextItem();
+		uri.setTitle("URI");
+		uri.setName("uri");
+		uri.setWidth(400);
+		
+		TextItem input = new TextItem();
+		TextItem output = new TextItem();
+		input.setTitle("Input");
+		input.setName("input");
+		output.setTitle("Output");
+		output.setName("output");
+		
+		TextAreaItem description = new TextAreaItem();
+		description.setTitle("Description");
+		description.setName("description");
+		description.setWidth(300);
+		
+		form.setFields(name, packageName, type, description, location, uri, input, output);
+		form.setValue("name", pipe.name);
+		form.setValue("package", pipe.packageName);
+		form.setValue("type", pipe.type);
+		form.setValue("description", pipe.description);
+		if(pipe.type.equals("Modules"))
+			form.setValue("location", pipe.location);
+		else
+			form.hideItem("location");
+		if(pipe.type.equals("Modules") || pipe.type.equals("Workflows"))
+			form.setValue("uri", pipe.uri);
+		else
+			form.hideItem("uri");
+		if(pipe.type.equals("Data"))
+			;//TODO fill in later with the input and output data
+		else{
+			form.hideItem("output");
+			form.hideItem("input");
+		}
+		
+		
+		workarea.addMember(form);
 	}
 	
 	/**
