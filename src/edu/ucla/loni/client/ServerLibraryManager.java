@@ -20,6 +20,7 @@ import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
 import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
 import com.smartgwt.client.widgets.form.fields.FormItem;
+import com.smartgwt.client.widgets.form.fields.StaticTextItem;
 import com.smartgwt.client.widgets.form.fields.TextAreaItem;
 import com.smartgwt.client.widgets.form.fields.TextItem;
 import com.smartgwt.client.widgets.form.fields.events.ChangedEvent;
@@ -320,7 +321,7 @@ public class ServerLibraryManager implements EntryPoint {
             rootDirectory, 
             new AsyncCallback<Pipefile[]>() {
 		        public void onFailure(Throwable caught) {
-		        	error("Call to getFiles failed: " + caught.getMessage());
+		        	error("Failed to retrieve files: " + caught.getMessage());
 		        }
 
 		        public void onSuccess(Pipefile[] result) {
@@ -404,7 +405,7 @@ public class ServerLibraryManager implements EntryPoint {
 	            query,
 	            new AsyncCallback<Pipefile[]>() {
 			        public void onFailure(Throwable caught) {
-			        	error("Call to getSearchResults failed");
+			        	error("Failed to retrieve search results: "+ caught.getMessage());
 			        }
 	
 			        public void onSuccess(Pipefile[] result) {
@@ -431,10 +432,8 @@ public class ServerLibraryManager implements EntryPoint {
 		}
 	}
 	
-	private void fileOperations(final Pipefile[] selected){
-		clearWorkarea();
-		
-		// WorkareaTitle
+	private void fileOperationsActions(final Pipefile[] selected){
+		// Title
 		Label workareaTitle = new Label("File Operations");
 		workareaTitle.setHeight(20);
 		workareaTitle.setStyleName("workarea-title");
@@ -457,12 +456,12 @@ public class ServerLibraryManager implements EntryPoint {
 			public void onClick(ClickEvent event){
 				fileServer.removeFiles(selected, new AsyncCallback<Void>() {
 		        	public void onFailure(Throwable caught) {
-				        error("Call to removeFiles failed");
+				        error("Failed to remove file(s): " + caught.getMessage());
 				    }
 		
 				    public void onSuccess(Void result){
-				    	// TODO, update the tree
 				    	basicInstructions();
+				    	treeRefresh();
 				    }
 				});
 			}
@@ -470,10 +469,14 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		download.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				// TODO
-				// Create the url based on the API to be determined
-				String filename = selected[0].absolutePath;
-				String url = "servlet/download?filename=" + URL.encode(filename);
+				int length = selected.length;
+				
+				String url = "servlet/download?n=" + length;
+				for(int i = 0; i < length; i++){
+					String filename = selected[i].absolutePath;
+					url += "&filename_" + i + "=" + URL.encode(filename);
+				}
+				
 				Window.open(url, "downloadWindow", "");
 			}
 		});
@@ -482,32 +485,27 @@ public class ServerLibraryManager implements EntryPoint {
 			public void onClick(ClickEvent event){
 				fileServer.copyFiles(selected, combo.getDisplayValue(), new AsyncCallback<Void>() {
 		        	public void onFailure(Throwable caught) {
-				        error("Call to copyFiles failed");
+				        error("Failed to copy file(s): " + caught.getMessage());
 				    }
 		
 				    public void onSuccess(Void result){
-				    	clearWorkarea();
-				    	// TODO, update the tree, display success message 
+				    	basicInstructions();
+				    	treeRefresh(); 
 				    }
 				});
 			}
 		});
 		
-		//added functionality to move button
-		//right now if folder (in the tree view)  gets selected new dialog menu gets displayed that
-		//alows to move/remove/copy/download.
-		//the handler below implements moving of all files within selected folder to another.
-		//The destination is determined by the combobox that selects packages
 		move.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
 				fileServer.moveFiles(selected, combo.getDisplayValue(), new AsyncCallback<Void>() {
 					public void onFailure(Throwable caught) {
-				        error("Call to moveFiles failed");
+				        error("Failed to move file(s): " + caught.getMessage());
 				    }
 		
 				    public void onSuccess(Void result){
-				    	clearWorkarea();
-				    	// TODO, update the tree, display success message 
+				    	basicInstructions();
+				    	treeRefresh();  
 				    }
 				});
 			}
@@ -549,15 +547,16 @@ public class ServerLibraryManager implements EntryPoint {
 		actions.addMember(copyMoveLayout);
 		
 		workarea.addMember(actions);
-		
-		// SelectedFiles
-		
-		// WorkareaTitle
+	}
+	
+	private void fileOperationsSelectedFiles(final Pipefile[] selected){
+		// Title
 		Label selectedTitle = new Label("Selected Files");
 		selectedTitle.setHeight(20);
 		selectedTitle.setStyleName("workarea-title");
 		workarea.addMember(selectedTitle);
 		
+		// Selected Files
 		ListGrid grid = new ListGrid();
 		grid.setWidth(600);
 		ListGridField nField = new ListGridField("name", "Name");  
@@ -583,6 +582,13 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(grid);
 	}
 	
+	private void fileOperations(final Pipefile[] selected){
+		clearWorkarea();
+		
+		fileOperationsActions(selected);
+		fileOperationsSelectedFiles(selected);
+	}
+	
 	/**
 	 *  Updates the workarea with information about the file and
 	 *  buttons to edit it, copy it to another package, move it to another
@@ -592,62 +598,74 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  @param pathname full pathname for the file
 	 */
 	private void viewFile(String absolutePath){
+		final Pipefile pipe = pipes.get(absolutePath);
+		
 		clearWorkarea();
 		
-		Pipefile pipe = pipes.get(absolutePath);	
+		// File Operations
+		fileOperationsActions(new Pipefile[] {pipe});
 		
+		// Title
+		Label editFileTitle = new Label("Edit File");
+		editFileTitle.setHeight(20);
+		editFileTitle.setStyleName("workarea-title");
+		workarea.addMember(editFileTitle);
 		
+		// Edit File
 		DynamicForm form = new DynamicForm();
-		form.setCanEdit(false);
+		form.setCanEdit(true);
+        form.setPadding(10);
+        form.setWidth(800);
+        form.setStyleName("edit-form");
+		
 		TextItem name = new TextItem();
 		name.setTitle("Name");
 		name.setName("name");
-		//items[0] = name;
+		name.setWidth(600);
 		
 		TextItem packageName = new TextItem();
 		packageName.setTitle("Package");
 		packageName.setName("package");
-		//items[1] = packageName;
+		packageName.setWidth(600);
 		
-		TextItem type = new TextItem();
+		StaticTextItem type = new StaticTextItem();
 		type.setTitle("Type");
 		type.setName("type");
-		
-		TextItem location = new TextItem();
-		location.setTitle("Location");
-		location.setName("location");
-		location.setWidth(400);
-		
-		TextItem uri = new TextItem();
-		uri.setTitle("URI");
-		uri.setName("uri");
-		uri.setWidth(400);
-		
-		TextItem input = new TextItem();
-		TextItem output = new TextItem();
-		input.setTitle("Input");
-		input.setName("input");
-		output.setTitle("Output");
-		output.setName("output");
 		
 		TextAreaItem description = new TextAreaItem();
 		description.setTitle("Description");
 		description.setName("description");
-		description.setWidth(300);
+		description.setWidth(600);
+	
+		TextItem input = new TextItem();
+		input.setTitle("Input");
+		input.setName("input");
 		
-		form.setFields(name, packageName, type, description, location, uri, input, output);
+		TextItem output = new TextItem();
+		output.setTitle("Output");
+		output.setName("output");
+		
+		TextItem location = new TextItem();
+		location.setTitle("Location");
+		location.setName("location");
+		location.setWidth(600);
+		
+		TextItem uri = new TextItem();
+		uri.setTitle("URI");
+		uri.setName("uri");
+		uri.setWidth(600);
+		
+		TextAreaItem access = new TextAreaItem();
+		access.setTitle("Access");
+		access.setName("access");
+		access.setWidth(600);
+		
+		form.setFields(name, packageName, type, description, location, uri, input, output, access);
 		form.setValue("name", pipe.name);
 		form.setValue("package", pipe.packageName);
 		form.setValue("type", pipe.type);
 		form.setValue("description", pipe.description);
-		if(pipe.type.equals("Modules"))
-			form.setValue("location", pipe.location);
-		else
-			form.hideItem("location");
-		if(pipe.type.equals("Modules") || pipe.type.equals("Workflows"))
-			form.setValue("uri", pipe.uri);
-		else
-			form.hideItem("uri");
+		
 		if(pipe.type.equals("Data"))
 			;//TODO fill in later with the input and output data
 		else{
@@ -655,8 +673,28 @@ public class ServerLibraryManager implements EntryPoint {
 			form.hideItem("input");
 		}
 		
+		if(pipe.type.equals("Modules"))
+			form.setValue("location", pipe.location);
+		else
+			form.hideItem("location");
+		
+		if(pipe.type.equals("Modules") || pipe.type.equals("Workflows"))
+			form.setValue("uri", pipe.uri);
+		else
+			form.hideItem("uri");
+		
+		// Update Button
+		Button update = new Button("Update");
+		update.addClickHandler( new ClickHandler() {
+			public void onClick(ClickEvent event) {
+		    	// TODO
+				// Update pipefile
+				// Call fileServer.update
+		    }
+		});
 		
 		workarea.addMember(form);
+		workarea.addMember(update);
 	}
 	
 	/**

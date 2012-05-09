@@ -1,7 +1,6 @@
 package edu.ucla.loni.server;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.util.List;
 
@@ -13,6 +12,45 @@ import org.jdom2.output.XMLOutputter;
 import edu.ucla.loni.shared.Pipefile;
 
 public class ServerUtils {
+	/**  
+	 * given an absolute path string, this function attempts to isolate actual name of file
+	 * @param s - absolute path of file
+	 */
+	public static String extractFileName(String s)
+	{
+		String res = "";
+		for( int i = s.length() - 1; i >= 0; i-- )
+		{
+			if( s.charAt(i) == File.separatorChar ) //http://docs.oracle.com/javase/1.4.2/docs/api/java/io/File.html#separatorChar
+				//File.pathSeparatorChar = ';' and File.separatorChar = '/' OR '\' depending on OS
+			{
+				res = s.substring(i + 1, s.length());
+				break;
+			}
+		}
+		return res;
+	}
+	
+	/**
+	 *  given an absolute path string, this function isolates the directory absolute address where
+	 *  current file is placed
+	 *  @param s - absolute path of file
+	 */
+	public static String extractDirName(String s)
+	{
+		String res = "";
+		for( int i = s.length() - 1; i >= 0; i-- )
+		{
+			if( s.charAt(i) == File.separatorChar ) //http://docs.oracle.com/javase/1.4.2/docs/api/java/io/File.html#separatorChar
+				//File.pathSeparatorChar = ';' and File.separatorChar = '/' OR '\' depending on OS
+			{
+				res = s.substring(0, i);
+				break;
+			}
+		}
+		return res;
+	}
+	
 	/**
 	 * Parse an XML file into a Document
 	 */
@@ -60,9 +98,13 @@ public class ServerUtils {
 			throw new Exception("Pipefile does not have moduleGroup");
 		}
 		else {
-			List<Element> children = moduleGroup.getChildren();
-			if (children.size() == 1){
-				return children.get(0);
+			List<Element> data = moduleGroup.getChildren("dataModule");
+			List<Element> module = moduleGroup.getChildren("module");
+			
+			if (data.size() == 1 && module.size() == 0){
+				return data.get(0);
+			} else if (module.size() == 1 && data.size() == 0) {
+				return module.get(0);
 			} else {
 				return moduleGroup;
 			}
@@ -85,7 +127,7 @@ public class ServerUtils {
 			} else if (mainName == "module"){
 				pipe.type = "Modules";
 			} else if (mainName == "moduleGroup"){
-				pipe.type = "Workflow";
+				pipe.type = "Workflows";
 			} else {
 				throw new Exception("Pipefile has unknown type");
 			}

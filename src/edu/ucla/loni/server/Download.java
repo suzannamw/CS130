@@ -14,17 +14,18 @@ import javax.servlet.http.HttpServletResponse;
 @SuppressWarnings("serial")
 public class Download extends HttpServlet{
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException { 
-		// TODO
-		// Create API for how this works
-		boolean single = true;
+		String nFiles = request.getParameter("n");
+		int n = Integer.parseInt(nFiles);
 		
 		// If one file
-		if (single){
-			String filename = request.getParameter("filename");
+		if (n == 1){
+			String filename = request.getParameter("filename_0");
 			if (filename.endsWith(".pipe")){
+				String fShortName = ServerUtils.extractFileName(filename);
+				
 				// Set the Content Type to XML and the name of the file
 				response.setContentType("text/xml"); 
-				response.setHeader("Content-Disposition", "attachment; filename=" + filename); 			
+				response.setHeader("Content-Disposition", "attachment; filename=" + fShortName); 			
             
 	            OutputStream out = response.getOutputStream();
 	            FileInputStream in = new FileInputStream(filename);
@@ -51,6 +52,11 @@ public class Download extends HttpServlet{
 			}
 		}
 		else {
+			String filenames[] = new String[n];
+			for (int i = 0; i < n; i++){
+				filenames[i] = request.getParameter("filename_" + i);
+			}
+			
 			// TODO: Create and download zip
 		}
 	}

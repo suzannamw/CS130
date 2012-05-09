@@ -327,7 +327,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				return;
 			
 			Document doc = ServerUtils.parseXML(file);
-			doc = ServerUtils.update(doc, pipe, true);
+			doc = ServerUtils.update(doc, pipe, false);
 			ServerUtils.write(file, doc);
 			
 			// TODO if packageChanged, move file
@@ -410,45 +410,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		}
 	}
 	
-	/*
-	*  given an absolute path string, this function attempts to isolate actual name of file
-	*  @param s - absolute path of file
-	*/
-	protected String extractFileName(String s)
-	{
-		String res = "";
-		for( int i = s.length() - 1; i >= 0; i-- )
-		{
-			if( s.charAt(i) == File.separatorChar ) //http://docs.oracle.com/javase/1.4.2/docs/api/java/io/File.html#separatorChar
-				//File.pathSeparatorChar = ';' and File.separatorChar = '/' OR '\' depending on OS
-			{
-				res = s.substring(i + 1, s.length());
-				break;
-			}
-		}
-		return res;
-	}
-	
-	/*
-	*  given an absolute path string, this function isolates the directory absolute address where
-	*  current file is placed
-	*  @param s - absolute path of file
-	*/
-	protected String extractDirName(String s)
-	{
-		String res = "";
-		for( int i = s.length() - 1; i >= 0; i-- )
-		{
-			if( s.charAt(i) == File.separatorChar ) //http://docs.oracle.com/javase/1.4.2/docs/api/java/io/File.html#separatorChar
-				//File.pathSeparatorChar = ';' and File.separatorChar = '/' OR '\' depending on OS
-			{
-				res = s.substring(0, i);
-				break;
-			}
-		}
-		return res;
-	}
-	
 	/**
 	 *  Move a file from the server to the proper package
 	 *  @param filename absolute path of the file = source path of file
@@ -457,8 +418,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public void moveFile(Pipefile pipe, String packageName) throws Exception{		
 		// Get destination directory, create if necessary
-		String root = extractDirName(extractDirName(extractDirName(pipe.absolutePath)));
-		String filename = extractFileName(pipe.absolutePath);
+		String root = ServerUtils.extractDirName(ServerUtils.extractDirName(ServerUtils.extractDirName(pipe.absolutePath)));
+		String filename = ServerUtils.extractFileName(pipe.absolutePath);
 		
 		String dest_dir = root + File.separatorChar + packageName.replace(" " , "_") + File.separatorChar + pipe.type;
 		
