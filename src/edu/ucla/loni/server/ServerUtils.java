@@ -78,7 +78,7 @@ public class ServerUtils {
 	/** 
 	 * Get the text value of children separated by a common and space
 	 */
-	private static String getChildrenText(Element element, String childName){
+	private static String getChildrenText(Element element, String childName, String separator){
 		List<Element> children = element.getChildren(childName);
 		int length = children.size();
 		
@@ -88,13 +88,13 @@ public class ServerUtils {
 			
 			String text = child.getText();
 			if (text != ""){
-				ret += text + ", ";
+				ret += text + separator;
 			}
 		}
 		
-		// Remove the last comma and space
+		// Remove the last separator
 		if (ret != ""){
-			ret = ret.substring(0, ret.length() - 2);
+			ret = ret.substring(0, ret.length() - separator.length());
 		}
 		
 		return ret;
@@ -152,13 +152,22 @@ public class ServerUtils {
 			pipe.name = main.getAttributeValue("name", "");
 			pipe.packageName = main.getAttributeValue("package", "");
 			pipe.description = main.getAttributeValue("description", "");
-			pipe.tags = getChildrenText(main, "tag");
+			pipe.tags = getChildrenText(main, "tag", ",");
 			
 			// Get type specific properties			
 			if (pipe.type == "Data"){
-				// TODO, 
-				// By the schema dataModule does not have output / input elements
-				// Also need to know what we are getting out
+				Element values = main.getChild("values");
+				if (values != null){
+					pipe.values = getChildrenText(values, "value", "\n");
+				}
+				
+				Element output = main.getChild("output");
+				if (output != null){
+					Element format = output.getChild("format");
+					if (format != null){
+						pipe.formatType = format.getAttributeValue("type");
+					}
+				}
 			}
 			
 			if (pipe.type == "Modules"){
