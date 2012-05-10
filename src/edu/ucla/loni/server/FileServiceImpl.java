@@ -466,12 +466,12 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
 			"UPDATE pipefile " +
-			"SET absolutePath = ? AND packageName = ? " +
-			"WHERE absolutePath = ?" 		
+			"SET absolutePath = ? , packageName = ? " +
+			"WHERE absolutePath = ?"	
 		);
-		stmt.setString(1, oldAbsolutePath);
-		stmt.setString(2, packageName);
-		stmt.setString(3, newAbsolutePath);
+		stmt.setString(1, "'" + oldAbsolutePath + "'");
+		stmt.setString(2, "'" + packageName + "'");
+		stmt.setString(3, "'" + newAbsolutePath + "'");
 		stmt.executeUpdate();
 	}
 	
