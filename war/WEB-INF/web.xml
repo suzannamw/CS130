@@ -24,7 +24,7 @@
 	
 	<servlet-mapping> 
         <servlet-name>downloadServlet</servlet-name> 
-        <url-pattern>/serverlibrarymanager/servlet/download</url-pattern> 
+        <url-pattern>/serverlibrarymanager/download</url-pattern> 
 	</servlet-mapping> 
 	
 	<!-- Upload Servlet -->
@@ -35,7 +35,7 @@
 	
 	<servlet-mapping> 
         <servlet-name>uploadServlet</servlet-name> 
-        <url-pattern>/serverlibrarymanager/servlet/upload</url-pattern> 
+        <url-pattern>/serverlibrarymanager/upload</url-pattern> 
 	</servlet-mapping> 
   
 	 <!-- Default page to serve -->

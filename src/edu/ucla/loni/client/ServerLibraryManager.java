@@ -147,8 +147,10 @@ public class ServerLibraryManager implements EntryPoint {
 			if (numSelected == 0){
 				basicInstructions();
 			}
-			else if (numSelected == 1 && !folder){
-				viewFile(clicked.getAttribute("absolutePath"));
+			else if (numSelected == 1){
+				String absolutePath = selected[0].getAttribute("absolutePath");
+				Pipefile pipe = pipes.get(absolutePath);
+				viewFile(pipe);
 			}
 			else {
 				Pipefile[] selectedPipes = new Pipefile[selected.length];
@@ -471,7 +473,7 @@ public class ServerLibraryManager implements EntryPoint {
 			public void onClick(ClickEvent event){
 				int length = selected.length;
 				
-				String url = "servlet/download?n=" + length;
+				String url = "download?n=" + length;
 				for(int i = 0; i < length; i++){
 					String filename = selected[i].absolutePath;
 					url += "&filename_" + i + "=" + URL.encode(filename);
@@ -594,12 +596,9 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  buttons to edit it, copy it to another package, move it to another
 	 *  package, and to remove it
 	 *  <p>
-	 *  Saves the Pipefile to the private variable currentPipefile
-	 *  @param pathname full pathname for the file
+	 *  @param pipe Pipefile 
 	 */
-	private void viewFile(String absolutePath){
-		final Pipefile pipe = pipes.get(absolutePath);
-		
+	private void viewFile(final Pipefile pipe){		
 		clearWorkarea();
 		
 		// File Operations

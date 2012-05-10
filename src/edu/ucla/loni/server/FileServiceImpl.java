@@ -145,18 +145,53 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		return list.toArray(ret);
 	}
 	
+	private void cleanDatabase(int dirID) throws Exception{
+		Connection con = getDatabaseConnection();
+		
+		// Select all the files in the database
+		PreparedStatement stmt = con.prepareStatement(
+	    	"SELECT absolutePath " +
+			"FROM pipefile " +
+			"WHERE directoryID = ?" 		
+		);
+	    stmt.setInt(1, dirID);
+		ResultSet rs = stmt.executeQuery();
+		
+		// For each file
+		while (rs.next()){
+			String path = rs.getString(1);
+			File file = new File(path);
+			
+			// If it does not exist, delete it from the database
+			if (file.exists() == false){
+				stmt = con.prepareStatement(
+				    "DELETE FROM pipefile " +
+					"WHERE absolutePath = ?"		
+				);
+				stmt.setString(1, path);
+				int deleted = stmt.executeUpdate();
+				
+				if (deleted != 1){
+					throw new Exception("Database removal failed");
+				}
+			}
+		}
+	}
+	
 	/**
 	 *  Update the database for this root folder 
 	 *  @param root absolute path of the root directory
 	 */
-	private void updateDatabase(File rootDir) throws Exception {
-		// Get all pipefiles recursively under this folder
+	private void updateDatabase(File rootDir) throws Exception {		
+		// Clean the database
+		int dirID = getDirectoryId(rootDir.getAbsolutePath());	
+		cleanDatabase(dirID);
+		
+		// Update all files
 		ArrayList<File> files = getAllPipefiles(new ArrayList<File>(), rootDir);
 		
 		if (files.size() > 0){
 			Connection con = getDatabaseConnection();
-			 
-			int dirID = getDirectoryId(rootDir.getAbsolutePath());
 			
 			// For each pipefile
 			for (File file : files){			    
@@ -259,7 +294,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				PreparedStatement stmt = con.prepareStatement(
 			    	"SELECT * " +
 					"FROM pipefile " +
-					"WHERE directoryID = ?" 		
+					"WHERE directoryID = ? " +
+					"ORDER BY absolutePath"
 				);
 			    stmt.setInt(1, dirID);
 				ResultSet rs = stmt.executeQuery();
@@ -283,28 +319,26 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	public Pipefile[] getSearchResults(String root, String query) throws Exception{
 		try {
 			// Convert to lower case so can test case insensitive
-			query = query.toLowerCase();
+			query = "%" + query.toLowerCase() + "%";
 			
 			Connection con = getDatabaseConnection();
-			int dirID = getDirectoryId(root);
+			int dirID = getDirectoryId(root); 
+			
 			PreparedStatement stmt = con.prepareStatement(
 				"SELECT * " +
 				"FROM pipefile " +
 				"WHERE directoryID = ? " +
-					"AND (LCASE(name) LIKE '%" + query + "%' " +
-					     "OR LCASE(packageName) LIKE '%" + query + "%'" +
-					     "OR LCASE(description) LIKE '%" + query + "%'" +
-					     "OR LCASE(tags) LIKE '%" + query + "%')" 
-					//DO NOT CHANGE
-					//for some reason on my computer making later setString substitution
-					//was not producing the right result, i.e. not finding items in
-					//database. My guess the setString was not formatting correctly.
-					     
-					// setString should now have single quotes surrounding it
-					// Right now this code is subject to SQL injection, need to use setString
+					"AND (LCASE(name) LIKE ? " +
+					     "OR LCASE(packageName) LIKE ? " +
+					     "OR LCASE(description) LIKE ? " +
+					     "OR LCASE(tags) LIKE ? )" 
 			);
 			stmt.setInt(1, dirID);
-			//stmt.setString(2, "'%" + query + "%'");
+			stmt.setString(2, query);
+			stmt.setString(3, query);
+			stmt.setString(4, query);
+			stmt.setString(5, query);			
+			
 			ResultSet rs = stmt.executeQuery();
 			
 			return resultSetToPipefileArray(rs);
@@ -326,9 +360,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			if (!file.exists() || !file.canRead())
 				return;
 			
-			Document doc = ServerUtils.parseXML(file);
+			Document doc = ServerUtils.readXML(file);
 			doc = ServerUtils.update(doc, pipe, false);
-			ServerUtils.write(file, doc);
+			ServerUtils.writeXML(file, doc);
 			
 			// TODO if packageChanged, move file
 			// TODO update the database
@@ -417,25 +451,31 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @throws Exception 
 	 */
 	public void moveFile(Pipefile pipe, String packageName) throws Exception{		
-		// Get destination directory, create if necessary
+		// Get old and new absolute path directory
+		String oldAbsolutePath = pipe.absolutePath;
+		
 		String root = ServerUtils.extractDirName(ServerUtils.extractDirName(ServerUtils.extractDirName(pipe.absolutePath)));
 		String filename = ServerUtils.extractFileName(pipe.absolutePath);
 		
-		String dest_dir = root + File.separatorChar + packageName.replace(" " , "_") + File.separatorChar + pipe.type;
+		String newAbsolutePath = root +
+			File.separatorChar + packageName.replace(" " , "_") +
+			File.separatorChar + pipe.type +
+			File.separatorChar + filename;
+			
+		File src = new File(oldAbsolutePath);
+		File dest = new File(newAbsolutePath);
 		
-		File dir = new File(dest_dir);
-		if(dir.exists() == false){
-			dir.mkdir();
+		// If the destination directory does not exist, create it and necessary parent directories
+		File destDir = dest.getParentFile();
+		if (destDir.exists() == false){
+			boolean success = destDir.mkdirs();
+			if (!success){
+				throw new Exception("Destination folders could not be created");
+			}
 		}
 		
-		String oldAbsolutePath = pipe.absolutePath;
-		String newAbsolutePath = dest_dir + File.separatorChar + filename;
-		
 		// Move the file
-		File source_file = new File(oldAbsolutePath);
-		File dest_file = new File(newAbsolutePath);
-		
-		boolean success = source_file.renameTo(dest_file);
+		boolean success = src.renameTo(dest);
 		if(success == false) {
 			throw new Exception("File could not be moved");
 		}
@@ -455,24 +495,28 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		//then I will extract the directory name from it. If anyone complains, I am open to negotiations on this minor issue.
 		
 		// Update XML
-		Document doc = ServerUtils.parseXML(dest_file);
-		
 		pipe.packageName = packageName;
-		doc = ServerUtils.update(doc, pipe, true);
 		
-		ServerUtils.write(dest_file, doc);
+		Document doc = ServerUtils.readXML(dest);
+		doc = ServerUtils.update(doc, pipe, true);
+		ServerUtils.writeXML(dest, doc);
 		
 		// Update Database
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
 			"UPDATE pipefile " +
-			"SET absolutePath = ? , packageName = ? " +
+			"SET absolutePath = ?, packageName = ?, lastModified = ? " +
 			"WHERE absolutePath = ?"	
 		);
-		stmt.setString(1, "'" + oldAbsolutePath + "'");
-		stmt.setString(2, "'" + packageName + "'");
-		stmt.setString(3, "'" + newAbsolutePath + "'");
-		stmt.executeUpdate();
+		stmt.setString(1, newAbsolutePath);
+		stmt.setString(2, packageName);
+		stmt.setTimestamp(3, new Timestamp(dest.lastModified()));
+		stmt.setString(4, oldAbsolutePath);
+		int updated = stmt.executeUpdate();
+		
+		if (updated != 1){
+			throw new Exception("Database update failed");
+		}
 	}
 	
 	/**

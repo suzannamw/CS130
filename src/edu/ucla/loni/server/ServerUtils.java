@@ -54,11 +54,25 @@ public class ServerUtils {
 	/**
 	 * Parse an XML file into a Document
 	 */
-	public static Document parseXML(File pipe) throws Exception{
+	public static Document readXML(File pipe) throws Exception{
 		SAXBuilder builder = new SAXBuilder();
 		Document doc = (Document) builder.build(pipe);
 		
 		return doc;
+	}
+	
+	/**
+	 * Write a document (XML file) to a particular absolute path
+	 * @throws Exception 
+	 */
+	public static void writeXML(File file, Document doc) throws Exception{
+		XMLOutputter xmlOut = new XMLOutputter();
+		FileOutputStream fileOut = new FileOutputStream(file);
+		
+		xmlOut.output(doc, fileOut);
+		
+		fileOut.flush();
+		fileOut.close();
 	}
 	
 	/** 
@@ -118,7 +132,7 @@ public class ServerUtils {
 		try {
 			Pipefile pipe = new Pipefile();
 			
-			Document doc = parseXML(file);
+			Document doc = readXML(file);
 			Element main = getMainElement(doc);
 			
 			String mainName = main.getName();
@@ -224,19 +238,5 @@ public class ServerUtils {
 		}
 		
 		return doc;
-	}
-	
-	/**
-	 * Write a document (XML file) to a particular absolute path
-	 * @throws Exception 
-	 */
-	public static void write(File file, Document doc) throws Exception{
-		XMLOutputter xmlOut = new XMLOutputter();
-		FileOutputStream fileOut = new FileOutputStream(file);
-		
-		xmlOut.output(doc, fileOut);
-		
-		fileOut.flush();
-		fileOut.close();
 	}
 }
