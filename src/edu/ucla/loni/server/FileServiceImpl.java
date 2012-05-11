@@ -2,10 +2,6 @@ package edu.ucla.loni.server;
 
 import java.io.File;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 
 import java.util.ArrayList;
@@ -19,30 +15,10 @@ import org.jdom2.Document;
 
 
 @SuppressWarnings("serial")
-public class FileServiceImpl extends RemoteServiceServlet implements FileService {
+public class FileServiceImpl extends RemoteServiceServlet implements FileService {	
 	////////////////////////////////////////////////////////////
-	// Private Variables
+	// Private Functions
 	////////////////////////////////////////////////////////////
-	private Connection db_connection;
-	private String db_name = "jdbc:hsqldb:hsql://localhost/xdb";
-	private String db_username = "SA";
-	private String db_password = "";
-	
-	////////////////////////////////////////////////////////////
-	// Private Database Functions
-	////////////////////////////////////////////////////////////
-	/**
-	 *  Returns a connection to the database
-	 */
-	private Connection getDatabaseConnection() throws Exception {
-		if (db_connection == null){
-			Class.forName("org.hsqldb.jdbcDriver");
-			db_connection = DriverManager.getConnection(db_name, db_username, db_password);
-		}
-		
-		return db_connection;
-	}
-	
 	/**
 	 *  Recursively get all pipefiles
 	 */
@@ -69,110 +45,24 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 * @return directoryID of the root directory
 	 */
 	private int getDirectoryId(String absolutePath) throws Exception{
-		int ret = selectDirectoryId(absolutePath);
+		int ret = Database.selectDirectory(absolutePath);
 		if(ret == -1){
-			insertDirectoryId(absolutePath);
-			ret = selectDirectoryId(absolutePath);
+			Database.insertDirectory(absolutePath);
+			ret = Database.selectDirectory(absolutePath);
 		}
 		return ret;
 	}
 	
-	/** 
-	 * @param absolutePath absolute path of the root directory  
-	 * @return directoryID of the root directory, or -1 if not found
-	 */
-	private int selectDirectoryId(String absolutePath) throws Exception{
-		Connection con = getDatabaseConnection();
-		
-		PreparedStatement stmt = con.prepareStatement(
-			"SELECT directoryID " +
-			"FROM directory " +		
-			"WHERE absolutePath = ?"		
-		);
-		stmt.setString(1, absolutePath);
-		ResultSet rs = stmt.executeQuery();
-		
-		if (rs.next()){
-			return rs.getInt(1);
-		} else {
-			return -1;
-		}
-	}
-	
-	
-	/** 
-	 * Inserts directory into the database, directoryID is automatically generated
-	 * 
-	 * @param absolutePath absolute path of the root directory  
-	 */
-	private void insertDirectoryId(String absolutePath) throws Exception{
-		Connection con = getDatabaseConnection();
-		
-		PreparedStatement stmt = con.prepareStatement(
-			"INSERT INTO directory (absolutePath) " +
-			"VALUES (?)" 		
-		);
-		stmt.setString(1, absolutePath);
-		stmt.executeUpdate();
-	}
-	
 	/**
-	 * ResultSet is from a query with the following form 
-	 *   SELECT * FROM pipefile WHERE ...
+	 *  Remove files from the database in the case that they were deleted
 	 */
-	private Pipefile[] resultSetToPipefileArray(ResultSet rs) throws Exception{
-		ArrayList<Pipefile> list = new ArrayList<Pipefile>();
-		while (rs.next()) {
-			Pipefile p = new Pipefile();
-			
-			// directoryID at index 1
-			p.absolutePath = rs.getString(2);
-			// lastModified at index 3
-			p.name = rs.getString(4);
-			p.type = rs.getString(5);
-			p.packageName = rs.getString(6);
-			p.description = rs.getString(7);
-			p.tags = rs.getString(8);
-			p.location = rs.getString(9);
-			p.uri = rs.getString(10);
-			
-			p.access = rs.getString(11);
-			
-			list.add(p);
-		}
-		
-		Pipefile[] ret = new Pipefile[list.size()];
-		return list.toArray(ret);
-	}
-	
-	private void cleanDatabase(int dirID) throws Exception{
-		Connection con = getDatabaseConnection();
-		
-		// Select all the files in the database
-		PreparedStatement stmt = con.prepareStatement(
-	    	"SELECT absolutePath " +
-			"FROM pipefile " +
-			"WHERE directoryID = ?" 		
-		);
-	    stmt.setInt(1, dirID);
-		ResultSet rs = stmt.executeQuery();
-		
-		// For each file
-		while (rs.next()){
-			String path = rs.getString(1);
-			File file = new File(path);
-			
-			// If it does not exist, delete it from the database
-			if (file.exists() == false){
-				stmt = con.prepareStatement(
-				    "DELETE FROM pipefile " +
-					"WHERE absolutePath = ?"		
-				);
-				stmt.setString(1, path);
-				int deleted = stmt.executeUpdate();
-				
-				if (deleted != 1){
-					throw new Exception("Database removal failed");
+	private void removeFiles(int dirId) throws Exception{
+		Pipefile[] pipes = Database.selectPipefiles(dirId);
+		if (pipes != null){
+			for(Pipefile pipe : pipes){
+				File file = new File(pipe.absolutePath);
+				if (file.exists() == false){
+					Database.deletePipefile(pipe);
 				}
 			}
 		}
@@ -182,94 +72,116 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Update the database for this root folder 
 	 *  @param root absolute path of the root directory
 	 */
-	private void updateDatabase(File rootDir) throws Exception {		
+	private void updateFiles(File rootDir) throws Exception {		
 		// Clean the database
-		int dirID = getDirectoryId(rootDir.getAbsolutePath());	
-		cleanDatabase(dirID);
+		int dirId = getDirectoryId(rootDir.getAbsolutePath());	
+		removeFiles(dirId);
 		
 		// Update all files
 		ArrayList<File> files = getAllPipefiles(new ArrayList<File>(), rootDir);
-		
-		if (files.size() > 0){
-			Connection con = getDatabaseConnection();
+				
+		// For each pipefile
+		for (File file : files){	
+			Timestamp db_lastModified = Database.selectPipefileLastModified(file.getAbsolutePath());
+		    
+			// Determine if the row needs to be updated or inserted
+		    boolean update = false;
+		    boolean insert = true;
+		    
+		    Timestamp fs_lastModified = new Timestamp(file.lastModified());
 			
-			// For each pipefile
-			for (File file : files){			    
-			    // Get the lastModified of this pipefile to determine if database is up-to-date
-			    PreparedStatement stmt = con.prepareStatement(
-			    	"SELECT lastModified " +
-					"FROM pipefile " +
-					"WHERE absolutePath = ?" 		
-				);
-			    stmt.setString(1, file.getAbsolutePath());
-				ResultSet rs = stmt.executeQuery();
-			    
-				// Determine if the row needs to be updated or inserted
-			    boolean update = false;
-			    boolean insert = true;
-			    
-			    Timestamp fs_lastModified = new Timestamp(file.lastModified());
+		    if (db_lastModified != null){
+				insert = false;
 				
-			    if (rs.next()){
-					insert = false;
-					
-					Timestamp db_lastModified = rs.getTimestamp(1);
-					
-					// If file has been modified
-					if (db_lastModified.equals(fs_lastModified) == false){
-						update = true;
-					}
+				// If file has been modified
+				if (db_lastModified.equals(fs_lastModified) == false){
+					update = true;
 				}
+			}
+			
+			// If we need to update or insert a row
+		    if (update || insert){			    	
+		    	Pipefile pipe = ServerUtils.parseFile(file);
 				
-				// If we need to update or insert a row
-			    if (update || insert){			    	
-			    	Pipefile pipe = ServerUtils.parseFile(file);
-					
-					if (insert){
-						/*
-						 * database schema for pipefile
-						 */
-						
-						stmt = con.prepareStatement(
-							"INSERT INTO pipefile (" +
-								"directoryID, absolutePath, lastModified, " +
-								"name, type, packageName, description, tags, " +
-								"location, uri, access) " +
-							"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-						);
-						stmt.setInt(1, dirID);
-						stmt.setString(2, pipe.absolutePath);
-						stmt.setTimestamp(3, fs_lastModified);
-						stmt.setString(4, pipe.name);
-						stmt.setString(5, pipe.type);
-						stmt.setString(6, pipe.packageName);
-						stmt.setString(7, pipe.description);
-						stmt.setString(8, pipe.tags);
-						stmt.setString(9, pipe.location);
-						stmt.setString(10, pipe.uri);
-						stmt.setString(11, ""); // access
-					} else {
-						// directoryID and access are not based on the file in the system
-						stmt = con.prepareStatement(
-							"UPDATE pipefile " +
-						    "SET name = ?, type = ?, packageName = ?, description = ?, tags = ?, " +
-						    "location = ?, uri = ?, lastModified = ? " +
-							"WHERE absolutePath = ?"
-						);
-						stmt.setString(1, pipe.name);
-						stmt.setString(2, pipe.type);
-						stmt.setString(3, pipe.packageName);
-						stmt.setString(4, pipe.description);
-						stmt.setString(5, pipe.tags);
-						stmt.setString(6, pipe.location);
-						stmt.setString(7, pipe.uri);
-						stmt.setTimestamp(8, fs_lastModified);
-						stmt.setString(9, pipe.absolutePath);
-					}
-					stmt.executeUpdate();
-	 		    }
+				if (insert){
+					Database.insertPipefile(dirId, pipe, fs_lastModified);
+				} else {
+					Database.updatePipefile(pipe, fs_lastModified);
+				}
+ 		    }
+		}
+	}
+	
+	/**
+	 *  Removes a file from the server
+	 *  @param filename absolute path of the file
+	 */
+	private void removeFile(Pipefile pipe) throws Exception {		
+		File f = new File(pipe.absolutePath);
+		if (f.exists()){
+			f.delete(); // TODO: check return status
+			
+			Database.deletePipefile(pipe);
+			
+			//TODO: update access restrictions file
+		}
+	}
+	
+	/**
+	 *  Copy a file from the server to the proper package
+	 *  @param filename absolute path of the file
+	 *  @param packageName absolute path of the package
+	 */
+	private void copyFile(Pipefile pipe, String packageName) throws Exception {
+		// TODO
+		// If the file exists
+		//   Copy the file to the new destination
+		//     File must be changed update the package
+		//   Insert a row corresponding to this file in the database
+		// do we insert or update? isnt this file already in db?
+		return;	
+	}
+	
+	/**
+	 *  Move a file from the server to the proper package
+	 *  @param filename absolute path of the file = source path of file
+	 *  @param packageName is the name of the package as it appears in the Database in column PACKAGENAME
+	 *  @throws Exception 
+	 */
+	public void moveFile(Pipefile pipe, String packageName) throws Exception{		
+		// Get old and new absolute path directory
+		String oldAbsolutePath = pipe.absolutePath;
+		String newAbsolutePath = ServerUtils.newAbsolutePath(pipe.absolutePath, packageName, pipe.type);
+		
+		File src = new File(oldAbsolutePath);
+		File dest = new File(newAbsolutePath);
+		
+		// If the destination directory does not exist, create it and necessary parent directories
+		File destDir = dest.getParentFile();
+		if (destDir.exists() == false){
+			boolean success = destDir.mkdirs();
+			if (!success){
+				throw new Exception("Destination folders could not be created");
 			}
 		}
+		
+		// Move the file
+		boolean success = src.renameTo(dest);
+		if(success == false) {
+			throw new Exception("File could not be moved");
+		}
+		
+		// Update Pipefile
+		pipe.packageName = packageName;
+		pipe.absolutePath = newAbsolutePath;
+		
+		// Update XML
+		Document doc = ServerUtils.readXML(dest);
+		doc = ServerUtils.update(doc, pipe, true);
+		ServerUtils.writeXML(dest, doc);
+		
+		// Update Database
+		Database.updatePipefile(pipe, new Timestamp(dest.lastModified()));
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -286,21 +198,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		try {
 			File rootDir = new File(root);
 			if (rootDir.exists() && rootDir.isDirectory()){
-				updateDatabase(rootDir);
+				updateFiles(rootDir);
 				
-				int dirID = getDirectoryId(root);
+				int dirId = getDirectoryId(root);
 				
-				Connection con = getDatabaseConnection();
-				PreparedStatement stmt = con.prepareStatement(
-			    	"SELECT * " +
-					"FROM pipefile " +
-					"WHERE directoryID = ? " +
-					"ORDER BY absolutePath"
-				);
-			    stmt.setInt(1, dirID);
-				ResultSet rs = stmt.executeQuery();
-				
-				return resultSetToPipefileArray(rs);
+				return Database.selectPipefiles(dirId);
 			} else {
 				return null;
 			}
@@ -318,30 +220,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public Pipefile[] getSearchResults(String root, String query) throws Exception{
 		try {
-			// Convert to lower case so can test case insensitive
-			query = "%" + query.toLowerCase() + "%";
-			
-			Connection con = getDatabaseConnection();
-			int dirID = getDirectoryId(root); 
-			
-			PreparedStatement stmt = con.prepareStatement(
-				"SELECT * " +
-				"FROM pipefile " +
-				"WHERE directoryID = ? " +
-					"AND (LCASE(name) LIKE ? " +
-					     "OR LCASE(packageName) LIKE ? " +
-					     "OR LCASE(description) LIKE ? " +
-					     "OR LCASE(tags) LIKE ? )" 
-			);
-			stmt.setInt(1, dirID);
-			stmt.setString(2, query);
-			stmt.setString(3, query);
-			stmt.setString(4, query);
-			stmt.setString(5, query);			
-			
-			ResultSet rs = stmt.executeQuery();
-			
-			return resultSetToPipefileArray(rs);
+			int dirId = getDirectoryId(root); 
+			return Database.selectPipefilesSearch(dirId, query);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -376,26 +256,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
-	 *  Removes a file from the server
-	 *  @param filename absolute path of the file
-	 */
-	private void removeFile(Pipefile pipe) throws Exception {		
-		File f = new File(pipe.absolutePath);
-		if (f.exists()){
-			f.delete(); // TODO: check return status
-			Connection con = getDatabaseConnection();
-			
-			PreparedStatement stmt = con.prepareStatement(
-				"DELETE FROM pipefile " +
-				"WHERE absolutePath = ?" 		
-			);
-			stmt.setString(1, pipe.absolutePath);
-			stmt.executeUpdate();
-			//TODO: update access restrictions file
-		}
-	}
-	
-	/**
 	 *  Removes files from the server
 	 *  @param filenames absolute paths of the files
 	 * @throws SQLException 
@@ -413,21 +273,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
-	 *  Copy a file from the server to the proper package
-	 *  @param filename absolute path of the file
-	 *  @param packageName absolute path of the package
-	 */
-	private void copyFile(Pipefile pipe, String packageName) throws Exception {
-		// TODO
-		// If the file exists
-		//   Copy the file to the new destination
-		//     File must be changed update the package
-		//   Insert a row corresponding to this file in the database
-		// do we insert or update? isnt this file already in db?
-		return;	
-	}
-	
-	/**
 	 *  Copies files from the server to the proper package
 	 *  @param filenames absolute paths of the files
 	 *  @param packageName absolute path of the package
@@ -441,81 +286,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		catch (Exception e) {
 			e.printStackTrace();
 			throw new Exception(e.getMessage());
-		}
-	}
-	
-	/**
-	 *  Move a file from the server to the proper package
-	 *  @param filename absolute path of the file = source path of file
-	 *  @param packageName is the name of the package as it appears in the Database in column PACKAGENAME
-	 *  @throws Exception 
-	 */
-	public void moveFile(Pipefile pipe, String packageName) throws Exception{		
-		// Get old and new absolute path directory
-		String oldAbsolutePath = pipe.absolutePath;
-		
-		String root = ServerUtils.extractDirName(ServerUtils.extractDirName(ServerUtils.extractDirName(pipe.absolutePath)));
-		String filename = ServerUtils.extractFileName(pipe.absolutePath);
-		
-		String newAbsolutePath = root +
-			File.separatorChar + packageName.replace(" " , "_") +
-			File.separatorChar + pipe.type +
-			File.separatorChar + filename;
-			
-		File src = new File(oldAbsolutePath);
-		File dest = new File(newAbsolutePath);
-		
-		// If the destination directory does not exist, create it and necessary parent directories
-		File destDir = dest.getParentFile();
-		if (destDir.exists() == false){
-			boolean success = destDir.mkdirs();
-			if (!success){
-				throw new Exception("Destination folders could not be created");
-			}
-		}
-		
-		// Move the file
-		boolean success = src.renameTo(dest);
-		if(success == false) {
-			throw new Exception("File could not be moved");
-		}
-
-		// Something to check with Petros about
-		
-		//My initial thought was that package_name is related to directory_name by the following pattern:
-		//replace all white space characters (' ') by underscore characters ('_') and that is your directory_name. But it does not work...
-		//Proponents for the rule : "JHU DTI" package => "JHU_DTI" directory_name
-		//Opponents for the rule : "Automatic Registration Toolbox" package => "AutomaticRegistrationToolbox"
-		//In addition package names do not even spell out the same all the time
-		//check out Diffusion ToolKit package (make a note of upper case 'K' in word ToolKit)
-		//now look at the directory name : Diffusion_Toolkit (kit => k is lower case)
-		//examples of opponents are rather numerous, so instead of hardcoding or trying to find heuristic behind it, I just will extract
-		//name of directory from absolute path by first searching existing packageName, which suppose to have at least 1 file in it
-		//or else I would not be able to get the absolute path...
-		//then I will extract the directory name from it. If anyone complains, I am open to negotiations on this minor issue.
-		
-		// Update XML
-		pipe.packageName = packageName;
-		
-		Document doc = ServerUtils.readXML(dest);
-		doc = ServerUtils.update(doc, pipe, true);
-		ServerUtils.writeXML(dest, doc);
-		
-		// Update Database
-		Connection con = getDatabaseConnection();
-		PreparedStatement stmt = con.prepareStatement(
-			"UPDATE pipefile " +
-			"SET absolutePath = ?, packageName = ?, lastModified = ? " +
-			"WHERE absolutePath = ?"	
-		);
-		stmt.setString(1, newAbsolutePath);
-		stmt.setString(2, packageName);
-		stmt.setTimestamp(3, new Timestamp(dest.lastModified()));
-		stmt.setString(4, oldAbsolutePath);
-		int updated = stmt.executeUpdate();
-		
-		if (updated != 1){
-			throw new Exception("Database update failed");
 		}
 	}
 	

@@ -304,6 +304,23 @@ public class ServerLibraryManager implements EntryPoint {
 
 	    // Tree Initialization
 	    treeRefresh();
+	    
+	    // Group Initialization
+	    fileServer.getGroups(
+    		new AsyncCallback<Group[]>() {
+		        public void onFailure(Throwable caught) {
+		        	error("Failed to retrieve groups: " + caught.getMessage());
+		        }
+
+		        public void onSuccess(Group[] result) {
+		        	if (result != null){
+			        	for(Group g : result){
+			        		groups.put(g.name, g);
+			        	}
+		        	}
+		        }
+		    }
+        );
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -700,9 +717,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Updates workarea with a list of the groups 
 	 */
 	private void viewGroups(){
-		// TODO
-		// Call getGroups, save into private variable groups
-		
+		// TODO		
 		// Create a table
 		
 		// For each group

@@ -51,6 +51,26 @@ public class ServerUtils {
 		return res;
 	}
 	
+	public static String newAbsolutePath(String oldAbsolutePath, String packageName, String type){
+		String root = 
+			ServerUtils.extractDirName(
+				ServerUtils.extractDirName(
+					ServerUtils.extractDirName(
+						oldAbsolutePath
+					)
+				)
+			);
+		
+		String filename = ServerUtils.extractFileName(oldAbsolutePath);
+		
+		String newAbsolutePath = root +
+			File.separatorChar + packageName.replace(" " , "_") +
+			File.separatorChar + type +
+			File.separatorChar + filename;
+		
+		return newAbsolutePath;
+	}
+	
 	/**
 	 * Parse an XML file into a Document
 	 */
