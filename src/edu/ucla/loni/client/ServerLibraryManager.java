@@ -694,7 +694,7 @@ public class ServerLibraryManager implements EntryPoint {
 		else
 			form.hideItem("location");
 		
-		if(pipe.type.equals("Modules") || pipe.type.equals("Workflows"))
+		if(pipe.type.equals("Modules") || pipe.type.equals("Groups"))
 			form.setValue("uri", pipe.uri);
 		else
 			form.hideItem("uri");

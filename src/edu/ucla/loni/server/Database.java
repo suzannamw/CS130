@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 
+import edu.ucla.loni.shared.Group;
 import edu.ucla.loni.shared.Pipefile;
 
 public class Database {
@@ -238,5 +239,92 @@ public class Database {
 		if (deleted != 1){
 			throw new Exception("Failed to delete row from 'pipefile' table");
 		}
-	}	
+	}
+	
+	////////////////////////////////////////////////////////////
+	// Groups
+	////////////////////////////////////////////////////////////
+	
+	/**
+	 * ResultSet is from a query with the following form 
+	 *   SELECT groupId, name, users, COUNT(fileId) 
+	 *   FROM groups AS g JOIN groupPipefileConnections AS gpc ON g.gorupId = gpc.groupId
+	 *   WHERE ...
+	 *   GROUP BY groupId
+	 */
+	private static Group[] resultSetToGroupArray(ResultSet rs) throws Exception{
+		ArrayList<Group> list = new ArrayList<Group>();
+		
+		while (rs.next()) {
+			Group g = new Group();
+			
+			g.groupId = rs.getInt(1);
+			g.name = rs.getString(2);
+			g.users = rs.getString(3);
+			g.canRemove = ( rs.getInt(4) == 0 );
+			
+			list.add(g);
+		}
+		
+		if (list.size() > 0){
+			Group[] ret = new Group[list.size()];
+			return list.toArray(ret);
+		} else {
+			return null;
+		}
+	}
+	
+	/**
+	 *  Select all groups
+	 */
+	public static Group[] selectGroups() throws Exception{
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"SELECT groupId, name, users, COUNT(fileId) " +
+			"FROM groups AS g JOIN groupPipefileConnections AS gpc ON g.gorupId = gpc.groupId " +
+			"GROUP BY groupId"
+		);
+		ResultSet rs = stmt.executeQuery();
+		
+		return resultSetToGroupArray(rs);
+	}
+	
+	/**
+	 *  Insert a group
+	 */
+	public static void insertGroup(Group group) throws Exception{
+		//TODO
+	}
+	
+	/**
+	 *  Update a group
+	 */
+	public static void updateGroup(Group group) throws Exception{
+		//TODO
+	}
+	
+	/**
+	 *  Delete a group
+	 */
+	public static void deleteGroup(Group group) throws Exception{
+		//TODO
+	}
+	
+	////////////////////////////////////////////////////////////
+	// GroupPipefileCOnnections
+	////////////////////////////////////////////////////////////
+	
+	/**
+	 *  Insert a groupPipefileConnections
+	 */
+	public static void insertGroupPipefileConnection(int groupId, int fileId) throws Exception{
+		//TODO
+	}
+	
+	/**
+	 *  Delete all groupPipefileConnections associated with a file
+	 */
+	public static void deleteGroupPipefileConnections(int fileId) throws Exception{
+		//TODO
+	}
 }
