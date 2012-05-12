@@ -161,7 +161,7 @@ public class ServerUtils {
 			} else if (mainName == "module"){
 				pipe.type = "Modules";
 			} else if (mainName == "moduleGroup"){
-				pipe.type = "Workflows";
+				pipe.type = "Groups";
 			} else {
 				throw new Exception("Pipefile has unknown type");
 			}
@@ -194,7 +194,7 @@ public class ServerUtils {
 				pipe.location = main.getAttributeValue("location", "");
 			} 
 			
-			if (pipe.type == "Modules" || pipe.type == "Workflows"){
+			if (pipe.type == "Modules" || pipe.type == "Groups"){
 				pipe.uri = main.getChildText("uri");
 			}
 			
@@ -237,35 +237,93 @@ public class ServerUtils {
 				}
 				
 				// Create and add child				
-				Element child = new Element("uri");
+				Element child = new Element("tag");
 				child.setText(tag);
 				main.addContent(child);
 			}
 		
-			// Update input/output (children)
-			if (pipe.type == "Data"){	
-				// TODO
+			if (pipe.type == "Data"){
+				// Update values (values child => children)
+				Element valuesElement = main.getChild("values");
+				if (valuesElement == null){
+					valuesElement = new Element("values");
+					main.addContent(valuesElement);
+				}
+				
+				valuesElement.removeChildren("value"); // Remove all old values
+				
+				String values = pipe.values;
+				while (values != ""){
+					String value = "";
+					
+					// Find a newline, set value to substring, set values to remainder			
+					int newlineIndex = values.indexOf("\n");
+					if (newlineIndex == -1){
+						value = values;
+						values = "";
+					} else {
+						value = tags.substring(0, newlineIndex);
+						values = tags.substring(newlineIndex);
+					}
+					
+					// Create and add child				
+					Element valueElement = new Element("value");
+					valueElement.setText(value);
+					valuesElement.addContent(valueElement);
+				}
+				
+				// Update formatType (output child => format child => attribute)
+				Element output = main.getChild("output");
+				if (output == null){
+					output = new Element("output");
+					main.addContent(output);
+				}
+				
+				Element format = output.getChild("format");
+				if (format == null){
+					format = new Element("format");
+					main.addContent(format);
+				}
+				
+				format.setAttribute("type", pipe.formatType);
 			}
 			
-			// Update location (attribute)
+			
 			if (pipe.type == "Modules"){
+				// Update location (attribute)
 				main.setAttribute("location", pipe.location);
 			}
 			
-			// Update uri (child)
-			if (pipe.type == "Modules" || pipe.type == "Workflows"){
-				Element child = main.getChild("uri");
+			
+			if (pipe.type == "Modules" || pipe.type == "Groups"){
+				// Update uri (child)
+				Element uri = main.getChild("uri");
 				
 				// If child not present, create
-				if (child == null){
-					child = new Element("uri");
-					main.addContent(child);
+				if (uri == null){
+					uri = new Element("uri");
+					main.addContent(uri);
 				}
 				
-				child.setText(pipe.uri);
+				uri.setText(pipe.uri);
 			}
 		}
 		
 		return doc;
+	}
+	
+	
+	/**
+	 * recursively remove dir if it is empty
+	 */
+	public static void recursiveRemoveDir(File dir)
+	{
+		if (!dir.isDirectory())
+			return;
+		
+		if(dir.listFiles().length == 0) {
+			dir.delete();
+			recursiveRemoveDir(dir.getParentFile());
+		}
 	}
 }

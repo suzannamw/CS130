@@ -123,6 +123,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			Database.deletePipefile(pipe);
 			
+			// remove parent if this directory is empty
+			ServerUtils.recursiveRemoveDir(f.getParentFile());
+			
 			//TODO: update access restrictions file
 		}
 	}

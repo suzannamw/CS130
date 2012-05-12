@@ -10,7 +10,7 @@ public class Pipefile implements Serializable {
 	
 	// General Properties
 	public String name;
-	public String type;		// "Data", "Modules", or "Workflows"
+	public String type;		// "Data", "Modules", or "Groups"
 	public String packageName;
 	public String description;
 	public String tags;
