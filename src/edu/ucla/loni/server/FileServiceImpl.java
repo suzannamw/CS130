@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import edu.ucla.loni.client.FileService;
 import edu.ucla.loni.shared.*;
 
+import com.google.gwt.thirdparty.guava.common.io.Files;
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 
 import org.jdom2.Document;
@@ -136,13 +137,39 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param packageName absolute path of the package
 	 */
 	private void copyFile(Pipefile pipe, String packageName) throws Exception {
-		// TODO
 		// If the file exists
 		//   Copy the file to the new destination
 		//     File must be changed update the package
 		//   Insert a row corresponding to this file in the database
-		// do we insert or update? isnt this file already in db?
-		return;	
+		
+		
+		
+		// Get old and new absolute path directory
+		String oldAbsolutePath = pipe.absolutePath;
+		File src = new File(oldAbsolutePath);
+		
+		if (!src.exists()) return;
+		
+		String newAbsolutePath = ServerUtils.newAbsolutePath(pipe.absolutePath, packageName, pipe.type);
+		File dest = new File(newAbsolutePath);
+		Files.copy(src, dest);
+		
+		
+		Pipefile newPipe = pipe;
+		
+		// Update Pipefile
+		newPipe.packageName = packageName;
+		newPipe.absolutePath = newAbsolutePath;
+		
+		// Update XML
+		Document doc = ServerUtils.readXML(dest);
+		doc = ServerUtils.update(doc, newPipe, true);
+		ServerUtils.writeXML(dest, doc);
+		
+		// Update Database
+		Database.insertPipefile(
+				getDirectoryId(ServerUtils.extractDirName(newAbsolutePath)),
+				newPipe, new Timestamp(dest.lastModified()));
 	}
 	
 	/**
