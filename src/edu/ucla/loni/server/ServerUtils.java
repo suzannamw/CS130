@@ -16,14 +16,10 @@ public class ServerUtils {
 	 * given an absolute path string, this function attempts to isolate actual name of file
 	 * @param s - absolute path of file
 	 */
-	public static String extractFileName(String s)
-	{
+	public static String extractFileName(String s){
 		String res = "";
-		for( int i = s.length() - 1; i >= 0; i-- )
-		{
-			if( s.charAt(i) == File.separatorChar ) //http://docs.oracle.com/javase/1.4.2/docs/api/java/io/File.html#separatorChar
-				//File.pathSeparatorChar = ';' and File.separatorChar = '/' OR '\' depending on OS
-			{
+		for( int i = s.length() - 1; i >= 0; i-- ){
+			if( s.charAt(i) == File.separatorChar ) {
 				res = s.substring(i + 1, s.length());
 				break;
 			}
@@ -36,14 +32,10 @@ public class ServerUtils {
 	 *  current file is placed
 	 *  @param s - absolute path of file
 	 */
-	public static String extractDirName(String s)
-	{
+	public static String extractDirName(String s){
 		String res = "";
-		for( int i = s.length() - 1; i >= 0; i-- )
-		{
-			if( s.charAt(i) == File.separatorChar ) //http://docs.oracle.com/javase/1.4.2/docs/api/java/io/File.html#separatorChar
-				//File.pathSeparatorChar = ';' and File.separatorChar = '/' OR '\' depending on OS
-			{
+		for( int i = s.length() - 1; i >= 0; i-- ){
+			if( s.charAt(i) == File.separatorChar ) {
 				res = s.substring(0, i);
 				break;
 			}
@@ -52,20 +44,13 @@ public class ServerUtils {
 	}
 	
 	public static String extractRootDir(String abspath) {
+		// Absolute Path = root / package / type / filename
 		return extractDirName(extractDirName(extractDirName(abspath)));
 	}
 	
 	public static String newAbsolutePath(String oldAbsolutePath, String packageName, String type){
-		String root = 
-			ServerUtils.extractDirName(
-				ServerUtils.extractDirName(
-					ServerUtils.extractDirName(
-						oldAbsolutePath
-					)
-				)
-			);
-		
-		String filename = ServerUtils.extractFileName(oldAbsolutePath);
+		String root = extractRootDir(oldAbsolutePath);	
+		String filename = extractFileName(oldAbsolutePath);
 		
 		String newAbsolutePath = root +
 			File.separatorChar + packageName.replace(" " , "_") +
@@ -100,7 +85,7 @@ public class ServerUtils {
 	}
 	
 	/** 
-	 * Get the text value of children separated by a common and space
+	 * Get the text value of children joined by separator
 	 */
 	private static String getChildrenText(Element element, String childName, String separator){
 		List<Element> children = element.getChildren(childName);

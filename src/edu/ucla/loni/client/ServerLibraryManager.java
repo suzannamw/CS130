@@ -40,6 +40,8 @@ import com.smartgwt.client.widgets.grid.ListGridField;
 import com.smartgwt.client.widgets.grid.ListGridRecord;
 import com.smartgwt.client.widgets.grid.events.RecordDoubleClickEvent;
 import com.smartgwt.client.widgets.grid.events.RecordDoubleClickHandler;
+import com.smartgwt.client.widgets.grid.events.SelectionUpdatedEvent;
+import com.smartgwt.client.widgets.grid.events.SelectionUpdatedHandler;
 import com.smartgwt.client.widgets.layout.HLayout;
 import com.smartgwt.client.widgets.layout.VLayout;
 import com.smartgwt.client.widgets.menu.Menu;
@@ -375,7 +377,6 @@ public class ServerLibraryManager implements EntryPoint {
 	    left.addMember(treeGrid);
 	    
 	    left.addResizedHandler(new ResizedHandler() {
-	    	@Override
 	    	public void onResized (ResizedEvent event){
 	    		query.setWidth(left.getWidth() - 20);
 	    		rootNew.setWidth(left.getWidth() - 20);
@@ -443,7 +444,9 @@ public class ServerLibraryManager implements EntryPoint {
 	////////////////////////////////////////////////////////////
 	
 	private void updateGroups(final boolean view){
-	    fileServer.getGroups(
+	    groups.clear();
+		
+		fileServer.getGroups(
     		new AsyncCallback<Group[]>() {
 		        public void onFailure(Throwable caught) {
 		        	error("Failed to retrieve groups: " + caught.getMessage());
@@ -454,21 +457,6 @@ public class ServerLibraryManager implements EntryPoint {
 			        	for(Group g : result){
 			        		groups.put(g.name, g);
 			        	}
-		        	} 
-		        	// Testing Code
-		        	else {
-		        		Group test1 = new Group();
-		        		test1.name = "Group1";
-		        		test1.users = "user1, user2, user3";
-		        		test1.canRemove = false;
-		        		
-		        		Group test2 = new Group();
-		        		test2.name = "Group2";
-		        		test2.users = "user4, user1";
-		        		test2.canRemove = true;
-		        		
-		        		groups.put(test1.name, test1);
-		        		groups.put(test2.name, test2);
 		        	}
 		        	
 		        	if (view){
@@ -543,6 +531,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Updates Package Tree and Module Tree based on the rootDirectory
 	 */
 	private void updateFullTree(){
+		pipes.clear();
 		treeGrid.setData(fullTree);
 		
 	    // Update Trees
@@ -897,7 +886,6 @@ public class ServerLibraryManager implements EntryPoint {
 		final ListGrid grid = new ListGrid();
 		grid.setFields(nField, uField);
 		grid.setWidth(width);
-		grid.setShowRollOver(false);
 		grid.setSelectionAppearance(SelectionAppearance.CHECKBOX);
 		
         Collection<Group> groupsCollection = groups.values();
@@ -940,12 +928,31 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
 		
-		ToolStripButton removeGroups = new ToolStripButton("Remove Selected Groups");
+		final ToolStripButton removeGroups = new ToolStripButton("Remove Selected Groups");
+		removeGroups.setDisabled(true);
 		removeGroups.addClickHandler(new ClickHandler(){
 			public void onClick(ClickEvent event){
-				// TODO
-				// Get the selected groups
-				// Call removeGroups
+				ListGridRecord[] selected = grid.getSelectedRecords();
+				
+				if (selected != null && selected.length > 0){
+					Group[] toRemove = new Group[selected.length];
+					
+					int i = 0;
+					for(ListGridRecord r : selected){
+						String name = r.getAttribute("name");
+						toRemove[i++] = groups.get(name);
+					}
+					
+					fileServer.removeGroups(toRemove, new AsyncCallback<Void>(){
+						public void onFailure(Throwable caught) {
+				        	error("Failed to remove groups: "+ caught.getMessage());
+				        }
+
+				        public void onSuccess(Void result) {
+				        	updateGroups(true);
+				        }
+					});
+				}
 			}
 		});
 		
@@ -955,6 +962,17 @@ public class ServerLibraryManager implements EntryPoint {
 		top.addButton(newGroup);
 		top.addSeparator();
 		top.addButton(removeGroups);
+		
+		grid.addSelectionUpdatedHandler(new SelectionUpdatedHandler(){
+			public void onSelectionUpdated(SelectionUpdatedEvent event){
+				ListGridRecord[] selected = grid.getSelectedRecords();
+				if (selected != null && selected.length > 0){
+					removeGroups.setDisabled(false);
+				} else {
+					removeGroups.setDisabled(true);
+				}
+			}
+		});
 		
 		workarea.addMember(title);
 		workarea.addMember(description);

@@ -281,7 +281,7 @@ public class Database {
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
 			"SELECT groupId, name, users, COUNT(fileId) " +
-			"FROM groups AS g JOIN groupPipefileConnections AS gpc ON g.groupId = gpc.groupId " +
+			"FROM groups AS g LEFT JOIN groupPipefileConnections AS gpc ON g.groupId = gpc.groupId " +
 			"GROUP BY groupId"
 		);
 		ResultSet rs = stmt.executeQuery();
@@ -295,18 +295,16 @@ public class Database {
 	public static void insertGroup(Group group) throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"INSERT INTO groups (" +
-				"groupId, name, users) " +
-			"VALUES (?, ?, ?)"
+			"INSERT INTO groups (name, users) " +
+			"VALUES (?, ?)"
 		);
-		stmt.setInt(1, group.groupId);
-		stmt.setString(2, group.name);
-		stmt.setString(3, group.users);
+		stmt.setString(1, group.name);
+		stmt.setString(2, group.users);
 		
 		int inserted = stmt.executeUpdate();
 		
 		if (inserted != 1){
-			throw new Exception("Failed to insert row into groups");
+			throw new Exception("Failed to insert row into 'groups' table");
 		}
 	}
 	
@@ -328,7 +326,7 @@ public class Database {
 		int updated = stmt.executeUpdate();
 		
 		if (updated != 1){
-			throw new Exception("Failed to insert row into groups");
+			throw new Exception("Failed to update row in 'groups' table");
 		}
 	}
 	
@@ -346,7 +344,7 @@ public class Database {
 		int deleted = stmt.executeUpdate();
 		
 		if (deleted != 1){
-			throw new Exception("Failed to delete row from 'group' table");
+			throw new Exception("Failed to delete row from 'groups' table");
 		}
 	}
 	

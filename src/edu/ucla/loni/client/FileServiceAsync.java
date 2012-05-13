@@ -16,5 +16,7 @@ public interface FileServiceAsync {
 	void moveFiles(Pipefile[] pipes, String packageName, AsyncCallback<Void> callback);
 	
 	void getGroups(AsyncCallback<Group[]> callback);
+	
 	void updateGroup(Group g, AsyncCallback<Void> callback);
+	void removeGroups(Group[] groups, AsyncCallback<Void> callback);
 }

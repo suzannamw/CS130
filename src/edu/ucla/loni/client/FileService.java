@@ -18,5 +18,6 @@ public interface FileService extends RemoteService {
 	void 		moveFiles(Pipefile[] pipes, String packageName) throws Exception;
 	
 	Group[]		getGroups() throws Exception;
-	void		updateGroup(Group g) throws Exception;	
+	void		updateGroup(Group group) throws Exception;
+	void		removeGroups(Group[] groups) throws Exception;
 }

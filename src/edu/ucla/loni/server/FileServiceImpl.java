@@ -276,7 +276,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// TODO if packageChanged, move file
 			// TODO update the database
-			// TODO rewrite the access file
+			// TODO rewrite access file
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -295,6 +295,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			for (Pipefile pipe : pipes) {
 				removeFile(pipe);
 			}
+			// TODO rewrite access file	
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -312,6 +313,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			for (Pipefile pipe : pipes) {
 				copyFile(pipe, packageName);
 			}
+			// TODO rewrite access file	
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -330,6 +332,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			for (Pipefile pipe : pipes) {
 				moveFile(pipe, packageName);
 			}
+			// TODO rewrite access file	
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -341,20 +344,49 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Returns an array of all the groups
 	 */
 	public Group[] getGroups() throws Exception {
-		// TODO
-		// Call the database for a list of groups
-		// Convert to proper format
-		return Database.selectGroups();
+		try {
+			return Database.selectGroups();
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
+		}
 	}
 	
 	/**
-	 *  Updates a group on the server (also used for creating groups)
+	 *  Inserts or Updates a group on the server (also used for creating groups)
 	 *  @param group group to be updated
 	 */
 	public void	updateGroup(Group group) throws Exception{
-		// TODO
-		// Update the row in the database corresponding to this group
-		Database.updateGroup(group);
+		try {
+			if (group.groupId == -1){
+				Database.insertGroup(group);
+			} else {
+				Database.updateGroup(group);
+			}
+			// TODO rewrite access file	
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
+		}
+	}
+	
+	/**
+	 *  Deletes groups on the server (also used for creating groups)
+	 *  @param group group to be updated
+	 */
+	public void	removeGroups(Group[] groups) throws Exception{
+		try {
+			for (Group group: groups){
+				Database.deleteGroup(group);
+			}
+			// TODO rewrite access file
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
+		}
 	}
 }
 
