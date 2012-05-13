@@ -18,6 +18,7 @@ import com.smartgwt.client.types.KeyNames;
 import com.smartgwt.client.types.SelectionAppearance;
 import com.smartgwt.client.types.SelectionType;
 import com.smartgwt.client.types.VerticalAlignment;
+import com.smartgwt.client.util.SC;
 
 import com.smartgwt.client.widgets.events.ClickEvent;  
 import com.smartgwt.client.widgets.events.ClickHandler;
@@ -753,6 +754,34 @@ public class ServerLibraryManager implements EntryPoint {
 		fileOperationsSelectedFiles(selected);
 	}
 	
+	private void updateAccessInfo(TextAreaItem access, StaticTextItem accessInfo){
+		String info = 
+				"Enter a comma seperated list of users and groups (syntax = g:groupName).<br/>" +
+				"What each group resolves to will appear here.<br/>";;
+		
+		String list = access.getValueAsString();
+		if (list != null && list.length() > 0){
+			String[] agents = list.split(",");
+			
+			for(String agent : agents){
+				agent = agent.trim();
+				
+				if (agent.startsWith("g:")){
+					String groupName = agent.substring(2);
+					
+					if (groups.containsKey(groupName)){
+						Group g = groups.get(groupName);
+						info += "<br/>" + agent + " = " + g.users;
+					} else {
+						info += "<br/>" + agent + " is undefined";
+					}
+				}
+			}
+		}
+		
+		accessInfo.setValue(info);
+	}
+	
 	/**
 	 *  Updates the workarea with information about the file and
 	 *  buttons to edit it, copy it to another package, move it to another
@@ -768,6 +797,7 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		// Title
 		Label editFileTitle = new Label("Edit File");
+		editFileTitle.setHeight(40);
 		editFileTitle.setStyleName("workarea-title");
 		workarea.addMember(editFileTitle);
 		
@@ -815,16 +845,27 @@ public class ServerLibraryManager implements EntryPoint {
 		uri.setName("uri");
 		uri.setWidth(600);
 		
-		TextAreaItem access = new TextAreaItem();
+		final TextAreaItem access = new TextAreaItem();
 		access.setTitle("Access");
 		access.setName("access");
 		access.setWidth(600);
 		
-		form.setFields(name, packageName, type, description, location, uri, input, output, access);
+		final StaticTextItem accessInfo = new StaticTextItem();
+		accessInfo.setTitle("Access Info");
+		
+		access.addChangedHandler(new ChangedHandler(){
+			public void onChanged(ChangedEvent event){
+				updateAccessInfo(access, accessInfo);
+			}
+		});
+		
+		form.setFields(name, packageName, type, description, location, uri, input, output, access, accessInfo);
 		form.setValue("name", pipe.name);
 		form.setValue("package", pipe.packageName);
 		form.setValue("type", pipe.type);
 		form.setValue("description", pipe.description);
+		form.setValue("access", pipe.access);
+		updateAccessInfo(access, accessInfo);
 		
 		if(pipe.type.equals("Data"))
 			;//TODO fill in later with the input and output data
@@ -987,7 +1028,7 @@ public class ServerLibraryManager implements EntryPoint {
 	private void editGroup(final Group g){
 		clearWorkarea();
 		
-		boolean newGroup = (g.groupId == -1);
+		final boolean newGroup = (g.groupId == -1);
 		int width = 400;
 		
 		// Title
@@ -1015,17 +1056,24 @@ public class ServerLibraryManager implements EntryPoint {
 				g.name = name.getValueAsString();
 				g.users = users.getValueAsString();
 				
-				fileServer.updateGroup(g, new AsyncCallback<Void>(){
-					public void onFailure(Throwable caught) {
-			        	error("Failed to update group: "+ caught.getMessage());
-			        }
+				if (newGroup && groups.containsKey(g.name)){
+					SC.say("Name (" + g.name + ") is already in use. Please choose another name."); 
+				} 
+				else {
+					fileServer.updateGroup(g, new AsyncCallback<Void>(){
+						public void onFailure(Throwable caught) {
+				        	error("Failed to update group: "+ caught.getMessage());
+				        }
 
-			        public void onSuccess(Void result) {
-			        	updateGroups(true);
-			        }
-				});
+				        public void onSuccess(Void result) {
+				        	updateGroups(true);
+				        }
+					});
+				}
 			}
 		});
+		
+		// TODO, button to view all files that use this group
 		
 		workarea.addMember(title);
 		workarea.addMember(form);

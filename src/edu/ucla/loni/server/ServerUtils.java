@@ -212,23 +212,13 @@ public class ServerUtils {
 			// Update the tags (children)
 			main.removeChildren("tag"); // Remove all old tags
 			String tags = pipe.tags;
-			while (tags != ""){
-				String tag = "";
-				
-				// Find a comma, Set tag to substring, set tags to remainder			
-				int commaIndex = tags.indexOf(",");
-				if (commaIndex == -1){
-					tag = tags;
-					tags = "";
-				} else {
-					tag = tags.substring(0, commaIndex);
-					tags = tags.substring(commaIndex);
+			if (tags != null && tags.length() > 0){
+				String[] tagArray = tags.split(",");
+				for (String tag : tagArray){
+					Element child = new Element("tag");
+					child.setText(tag);
+					main.addContent(child);
 				}
-				
-				// Create and add child				
-				Element child = new Element("tag");
-				child.setText(tag);
-				main.addContent(child);
 			}
 		
 			if (pipe.type == "Data"){
@@ -242,23 +232,13 @@ public class ServerUtils {
 				valuesElement.removeChildren("value"); // Remove all old values
 				
 				String values = pipe.values;
-				while (values != ""){
-					String value = "";
-					
-					// Find a newline, set value to substring, set values to remainder			
-					int newlineIndex = values.indexOf("\n");
-					if (newlineIndex == -1){
-						value = values;
-						values = "";
-					} else {
-						value = tags.substring(0, newlineIndex);
-						values = tags.substring(newlineIndex);
+				if (values != null && values.length() > 0){
+					String[] valueArray = values.split("\n");
+					for (String value : valueArray){
+						Element valueElement = new Element("value");
+						valueElement.setText(value);
+						valuesElement.addContent(valueElement);
 					}
-					
-					// Create and add child				
-					Element valueElement = new Element("value");
-					valueElement.setText(value);
-					valuesElement.addContent(valueElement);
 				}
 				
 				// Update formatType (output child => format child => attribute)
