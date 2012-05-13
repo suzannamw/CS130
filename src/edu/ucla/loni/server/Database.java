@@ -281,7 +281,7 @@ public class Database {
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
 			"SELECT groupId, name, users, COUNT(fileId) " +
-			"FROM groups AS g JOIN groupPipefileConnections AS gpc ON g.gorupId = gpc.groupId " +
+			"FROM groups AS g JOIN groupPipefileConnections AS gpc ON g.groupId = gpc.groupId " +
 			"GROUP BY groupId"
 		);
 		ResultSet rs = stmt.executeQuery();
@@ -293,21 +293,61 @@ public class Database {
 	 *  Insert a group
 	 */
 	public static void insertGroup(Group group) throws Exception{
-		//TODO
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"INSERT INTO groups (" +
+				"groupId, name, users) " +
+			"VALUES (?, ?, ?)"
+		);
+		stmt.setInt(1, group.groupId);
+		stmt.setString(2, group.name);
+		stmt.setString(3, group.users);
+		
+		int inserted = stmt.executeUpdate();
+		
+		if (inserted != 1){
+			throw new Exception("Failed to insert row into groups");
+		}
 	}
 	
 	/**
 	 *  Update a group
 	 */
 	public static void updateGroup(Group group) throws Exception{
-		//TODO
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"UPDATE groups " +
+		    "SET name = ?, users = ? " +
+			"WHERE groupId = ?"
+		);
+		
+		stmt.setString(1, group.name);
+		stmt.setString(2, group.users);
+		stmt.setInt(3, group.groupId);
+		
+		int updated = stmt.executeUpdate();
+		
+		if (updated != 1){
+			throw new Exception("Failed to insert row into groups");
+		}
 	}
 	
 	/**
 	 *  Delete a group
 	 */
 	public static void deleteGroup(Group group) throws Exception{
-		//TODO
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"DELETE FROM groups " +
+			"WHERE groupId = ?" 		
+		);
+		stmt.setInt(1, group.groupId);
+		
+		int deleted = stmt.executeUpdate();
+		
+		if (deleted != 1){
+			throw new Exception("Failed to delete row from 'group' table");
+		}
 	}
 	
 	////////////////////////////////////////////////////////////
