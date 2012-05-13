@@ -51,6 +51,10 @@ public class ServerUtils {
 		return res;
 	}
 	
+	public static String extractRootDir(String abspath) {
+		return extractDirName(extractDirName(extractDirName(abspath)));
+	}
+	
 	public static String newAbsolutePath(String oldAbsolutePath, String packageName, String type){
 		String root = 
 			ServerUtils.extractDirName(

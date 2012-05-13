@@ -168,7 +168,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		
 		// Update Database
 		Database.insertPipefile(
-				getDirectoryId(ServerUtils.extractDirName(newAbsolutePath)),
+				getDirectoryId(ServerUtils.extractRootDir(newAbsolutePath)),
 				newPipe, new Timestamp(dest.lastModified()));
 	}
 	
