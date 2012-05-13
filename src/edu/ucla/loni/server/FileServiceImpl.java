@@ -344,7 +344,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		// TODO
 		// Call the database for a list of groups
 		// Convert to proper format
-		return null;
+		return Database.selectGroups();
 	}
 	
 	/**
@@ -354,7 +354,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	public void	updateGroup(Group group) throws Exception{
 		// TODO
 		// Update the row in the database corresponding to this group
-		return;
+		Database.updateGroup(group);
 	}
 }
 
