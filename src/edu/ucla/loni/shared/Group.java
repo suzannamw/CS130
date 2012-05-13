@@ -10,5 +10,12 @@ public class Group implements Serializable {
 	public String users;
 	
 	public boolean canRemove;
+	
+	public Group() {
+		groupId = -1;
+		name = "";
+		users = "";
+		canRemove = true;
+	}
 }
 

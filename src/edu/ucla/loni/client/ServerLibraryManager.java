@@ -2,7 +2,9 @@ package edu.ucla.loni.client;
 
 import edu.ucla.loni.shared.*;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
@@ -10,11 +12,17 @@ import com.google.gwt.http.client.URL;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
+import com.smartgwt.client.data.Record;
 import com.smartgwt.client.types.Alignment;
 import com.smartgwt.client.types.KeyNames;
+import com.smartgwt.client.types.SelectionAppearance;
+import com.smartgwt.client.types.SelectionType;
+import com.smartgwt.client.types.VerticalAlignment;
 
 import com.smartgwt.client.widgets.events.ClickEvent;  
 import com.smartgwt.client.widgets.events.ClickHandler;
+import com.smartgwt.client.widgets.events.ResizedEvent;
+import com.smartgwt.client.widgets.events.ResizedHandler;
 import com.smartgwt.client.widgets.Button;
 import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
@@ -30,15 +38,21 @@ import com.smartgwt.client.widgets.form.fields.events.KeyUpHandler;
 import com.smartgwt.client.widgets.grid.ListGrid;
 import com.smartgwt.client.widgets.grid.ListGridField;
 import com.smartgwt.client.widgets.grid.ListGridRecord;
+import com.smartgwt.client.widgets.grid.events.RecordDoubleClickEvent;
+import com.smartgwt.client.widgets.grid.events.RecordDoubleClickHandler;
 import com.smartgwt.client.widgets.layout.HLayout;
 import com.smartgwt.client.widgets.layout.VLayout;
-import com.smartgwt.client.widgets.tab.Tab;
-import com.smartgwt.client.widgets.tab.TabSet;
+import com.smartgwt.client.widgets.menu.Menu;
+import com.smartgwt.client.widgets.menu.MenuItem;
+import com.smartgwt.client.widgets.toolbar.ToolStrip;
+import com.smartgwt.client.widgets.toolbar.ToolStripButton;
 import com.smartgwt.client.widgets.tree.Tree;
 import com.smartgwt.client.widgets.tree.TreeGrid;
 import com.smartgwt.client.widgets.tree.TreeNode;
-import com.smartgwt.client.widgets.tree.events.NodeClickEvent;
-import com.smartgwt.client.widgets.tree.events.NodeClickHandler;
+import com.smartgwt.client.widgets.tree.events.LeafClickEvent;
+import com.smartgwt.client.widgets.tree.events.LeafClickHandler;
+import com.smartgwt.client.widgets.tree.events.NodeContextClickEvent;
+import com.smartgwt.client.widgets.tree.events.NodeContextClickHandler;
 
 /**
  * Entry point classes define <code>onModuleLoad()</code>.
@@ -56,7 +70,7 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   Default Root Directory
 	 */
-	private String rootDirectoryDefault = "C:\\Users\\charlie\\Desktop\\CraniumLibrary";
+	private String rootDirectoryDefault = "C:\\Users\\charlie\\Desktop\\Test";
 	
 	/**
 	 *   Current Root Directory
@@ -77,16 +91,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 *   <br>
 	 *   Used in: onModuleLoad
 	 */
-	private final Tree packageTree = new Tree();
-	
-	/**
-	 *   Module Tree
-	 *   <p>
-	 *   Set in: treeRefresh
-	 *   <br>
-	 *   Used in: onModuleLoad
-	 */
-	private final Tree moduleTree = new Tree();
+	private final Tree fullTree = new Tree();
 	
 	/**
 	 *   Results Tree
@@ -96,6 +101,17 @@ public class ServerLibraryManager implements EntryPoint {
 	 *   Used in: onModuleLoad
 	 */
 	private final Tree resultsTree = new Tree();
+	
+	/**
+	 *   Results Tree
+	 *   <p>
+	 *   Set in: treeResults
+	 *   <br>
+	 *   Used in: onModuleLoad
+	 */
+	private final TreeGrid treeGrid = new TreeGrid();
+	
+	private boolean viewByPackage = true;
 
 	/**
 	 *  String abosolutePath => Pipefile pipe
@@ -105,6 +121,13 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Used in: viewFile, editFile
 	 */
 	private final LinkedHashMap<String, Pipefile> pipes = new LinkedHashMap<String, Pipefile>();
+	
+	/**
+	 *   Set in: treeRefresh 
+	 *   <br>
+	 *   Used in: fileOperations
+	 */
+	private Pipefile[] selectedPipes;
 	
 	/**
 	 *   Set in: treeRefresh 
@@ -125,43 +148,70 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   NodeClickHandler for when a pipefile is selected within a tree
 	 */
-	private NodeClickHandler selectPipefileHandler = new NodeClickHandler() {
-		public void onNodeClick(NodeClickEvent event){
+	private LeafClickHandler pipefileClickHandler = new LeafClickHandler() {
+		public void onLeafClick(LeafClickEvent event){
 			TreeGrid grid = event.getViewer();
-			Tree tree = grid.getData();
-			TreeNode clicked = event.getNode();
-			
-			boolean folder = tree.isFolder(clicked);
-			
-			if (folder){
-				// Be sure the folder is open			
-				tree.openAll(clicked);
-				// Deselect the folder
-				grid.deselectRecord(clicked);
-				// Select all the leaves
-				grid.selectRecords(tree.getDescendantLeaves(clicked));
-			}
 			
 			ListGridRecord[] selected = grid.getSelectedRecords();
 			int numSelected = selected.length;
 			if (numSelected == 0){
 				basicInstructions();
 			}
-			else if (numSelected == 1){
-				String absolutePath = selected[0].getAttribute("absolutePath");
-				Pipefile pipe = pipes.get(absolutePath);
-				viewFile(pipe);
-			}
 			else {
-				Pipefile[] selectedPipes = new Pipefile[selected.length];
+				selectedPipes = new Pipefile[selected.length];
 				for (int i = 0; i < selected.length; i++){
 					String absolutePath = selected[i].getAttribute("absolutePath");
 					selectedPipes[i] = pipes.get(absolutePath);
 				}
-				fileOperations(selectedPipes);
+				
+				if (numSelected == 1){
+					String absolutePath = selected[0].getAttribute("absolutePath");
+					Pipefile pipe = pipes.get(absolutePath);
+					viewFile(pipe);
+				} else {
+					fileOperations(selectedPipes);
+				}
 			}
 		}
 	};
+	
+	private NodeContextClickHandler contextClickHandler = new NodeContextClickHandler() {
+		public void onNodeContextClick(NodeContextClickEvent event){
+			TreeGrid grid = event.getViewer();
+			Tree tree = grid.getData();
+			TreeNode clicked = event.getNode();
+			
+			Menu contextMenu = new Menu();
+			
+			if (tree.isFolder(clicked)){
+				int numSelected = selectedPipes != null ? selectedPipes.length : 0;
+			
+				if (clicked.getAttributeAsBoolean("moveHere") == false){
+					MenuItem msg = new MenuItem("Files can only be copied/moved to packages");
+					msg.setEnabled(false);
+					contextMenu.addItem(msg);
+				} else if (numSelected == 0){
+					MenuItem msg = new MenuItem("Select files to copy/move them here");
+					msg.setEnabled(false);
+					contextMenu.addItem(msg);
+				} else {
+					MenuItem copy = new MenuItem("Copy selected files (" + numSelected + ")");
+					contextMenu.addItem(copy);
+					MenuItem move = new MenuItem("Move selected files (" + numSelected + ")");
+					contextMenu.addItem(move);
+				}
+			} else {			
+				MenuItem download = new MenuItem("Download");
+				MenuItem remove = new MenuItem("Remove");
+				
+				contextMenu.addItem(download);
+				contextMenu.addItem(remove);
+			}			
+			
+			grid.setContextMenu(contextMenu);
+		}
+	};
+
 
 	////////////////////////////////////////////////////////////
 	// On Module Load
@@ -179,32 +229,42 @@ public class ServerLibraryManager implements EntryPoint {
 		title.setContents("Loni Pipeline Server Library Manager");
 		title.setStyleName("title");
 		
-		// Header -- Button Row -- Buttons
-		Button importButton = new Button("Import");
+		// Header -- ToolStrip		
+		ToolStripButton home = new ToolStripButton("Home");
+		home.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event) {
+				basicInstructions();
+			}
+		});
+		
+		ToolStripButton importButton = new ToolStripButton("Import");
 		importButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
 				importForm();
 			}
 		});
-		Button groupsButton = new Button("Manage Groups");
-		groupsButton.addClickHandler( new ClickHandler() {
+		
+		ToolStripButton groupsButton = new ToolStripButton("Manage Groups");
+		groupsButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-		    	viewGroups();
-		    }
+				viewGroups();
+			}
 		});
 		
 		// Header -- Button Row
-		HLayout buttonRow = new HLayout(5);
-		buttonRow.addMember(importButton);
-		buttonRow.addMember(groupsButton);
-		buttonRow.setMargin(5);
+	    ToolStrip mainToolStrip = new ToolStrip(); 
+	    mainToolStrip.addSpacer(1);
+	    mainToolStrip.addButton(home);
+	    mainToolStrip.addSeparator();
+	    mainToolStrip.addButton(importButton);
+	    mainToolStrip.addSeparator();
+	    mainToolStrip.addButton(groupsButton);
 		
 		// Header
 		VLayout header = new VLayout();
 		header.setHeight(75);
 		header.addMember(title);
-		header.addMember(buttonRow);
-		header.setStyleName("header");
+		header.addMember(mainToolStrip);
 		
 		// Workarea
 		workarea.setWidth100();
@@ -213,49 +273,39 @@ public class ServerLibraryManager implements EntryPoint {
 	    
 		basicInstructions();
 	    
-		// Left -- TreeTabs -- PackageTreeTab
-		TreeNode packageRoot = new TreeNode();
-		packageTree.setRoot(packageRoot);
-		packageTree.setShowRoot(false);
+		// Left -- Root Directory -- Label
+		final Label rootCurrent = new Label(rootDirectory);
+		rootCurrent.setHeight(40);
+		rootCurrent.setAlign(Alignment.CENTER);
+		rootCurrent.setValign(VerticalAlignment.TOP);
+		rootCurrent.setStyleName("root-directory");
 		
-		TreeGrid packageTreeGrid = new TreeGrid();
-	    packageTreeGrid.setData(packageTree);
-	    packageTreeGrid.setShowConnectors(true);
-	    packageTreeGrid.addNodeClickHandler(selectPipefileHandler);
-	    packageTreeGrid.setShowRollOver(false);
-	    
-	    Tab packageTreeTab = new Tab("By Package");
-	    packageTreeTab.setPane(packageTreeGrid);   
-	    
-	    // Left -- TreeTabs -- ModuleTreeTab
-	    TreeNode moduleRoot = new TreeNode();
-	    moduleTree.setRoot(moduleRoot);
-	    moduleTree.setShowRoot(false);
-	    
-	    TreeGrid moduleTreeGrid = new TreeGrid();
-	    moduleTreeGrid.setData(moduleTree);
-	    moduleTreeGrid.setShowConnectors(true);
-	    moduleTreeGrid.addNodeClickHandler(selectPipefileHandler);
-	    
-	    Tab moduleTreeTab = new Tab("By Module Type");
-	    moduleTreeTab.setPane(moduleTreeGrid);
-	    
-	    // Left -- TreeTabs -- ResultsTreeTab
-	    TreeNode resultsRoot = new TreeNode();
-	    resultsTree.setRoot(resultsRoot);
-	    resultsTree.setShowRoot(false);
-	    
-	    TreeGrid resultsTreeGrid = new TreeGrid();
-	    resultsTreeGrid.setData(resultsTree);
-	    resultsTreeGrid.setShowConnectors(false);
-	    resultsTreeGrid.addNodeClickHandler(selectPipefileHandler);
-	    
+		// Left -- Root Directory -- Form
+		final TextItem rootNew = new TextItem();
+		rootNew.setDefaultValue(rootDirectory);
+		rootNew.setShowTitle(false);
+		rootNew.setWidth(280);
+		
+		final DynamicForm rootForm = new DynamicForm();
+		rootForm.setHeight(40);
+		rootForm.setAlign(Alignment.CENTER);
+		rootForm.setFields(rootNew);
+		
+	    // Left -- Search Form
 	    final TextItem query = new TextItem();
+	    query.setHint("Search");
 	    query.setShowTitle(false);
-	    query.setWidth(290);
+	    query.setShowHintInField(true);
+	    query.setWidth(280);
 	    query.addChangedHandler(new ChangedHandler(){
 	    	public void onChanged(ChangedEvent event){
-	    		treeResults(query.getValueAsString());
+	    		String q = query.getValueAsString();
+	    		if (q != null && q.length() >= 2){
+	    			treeGrid.setData(resultsTree);
+	    			updateResultsTree(q);
+	    		} else {
+	    			treeGrid.setData(fullTree);
+	    		}
 	    	}
 	    });
 
@@ -263,20 +313,52 @@ public class ServerLibraryManager implements EntryPoint {
 	    searchForm.setFields(new FormItem[] {query});
 	    searchForm.setWidth100();
 	    
-	    VLayout search = new VLayout(10);
-	    search.addMember(searchForm);
-	    search.addMember(resultsTreeGrid);
+	    // Left -- Tool Strip
+	    ToolStripButton byPackage = new ToolStripButton("View By Package");
+	    byPackage.setActionType(SelectionType.RADIO);
+	    byPackage.setRadioGroup("view");
+	    byPackage.select();
 	    
-	    Tab resultsTreeTab = new Tab("Search");
-	    resultsTreeTab.setPane(search);
+	    ToolStripButton byType = new ToolStripButton("View By Module Type");
+	    byType.setActionType(SelectionType.RADIO);
+	    byType.setRadioGroup("view");
 	    
-	    // Left -- TreeTabs
-	    TabSet treeTabs = new TabSet();
-	    treeTabs.addTab(packageTreeTab);  
-	    treeTabs.addTab(moduleTreeTab);
-	    treeTabs.addTab(resultsTreeTab);
+	    byPackage.addClickHandler(new ClickHandler() {
+	    	public void onClick (ClickEvent event){	    		
+	    		viewByPackage = true;
+	    		sortFullTree();
+	    	}
+	    });
 	    
-	    VLayout left = new VLayout();
+	    byType.addClickHandler(new ClickHandler() {
+	    	public void onClick (ClickEvent event){
+	    		viewByPackage = false;
+	    		sortFullTree();
+	    	}
+	    });
+	    
+	    ToolStrip toolStrip = new ToolStrip(); 
+	    toolStrip.addSpacer(1);
+	    toolStrip.addButton(byPackage);
+	    toolStrip.addButton(byType);
+	    
+		// Left -- Tree Grid
+		TreeNode fullTreeRoot = new TreeNode();
+		fullTree.setRoot(fullTreeRoot);
+		fullTree.setShowRoot(false);
+		
+		TreeNode resultsTreeRoot = new TreeNode();
+	    resultsTree.setRoot(resultsTreeRoot);
+	    resultsTree.setShowRoot(false);
+		
+	    treeGrid.setData(fullTree);
+	    treeGrid.setShowConnectors(true);
+	    treeGrid.setShowRollOver(false);
+	    treeGrid.addLeafClickHandler(pipefileClickHandler);
+	    treeGrid.addNodeContextClickHandler(contextClickHandler);
+	    
+	    // Left 	    
+	    final VLayout left = new VLayout();
 	    left.setShowResizeBar(true);
 	    left.setCanDragResize(true);  
 	    left.setResizeFrom("L", "R"); 
@@ -284,9 +366,56 @@ public class ServerLibraryManager implements EntryPoint {
 	    left.setMinWidth(300);
 	    left.setMaxWidth(600);
 	    left.setAlign(Alignment.CENTER);
+	    left.setPadding(10);
+	    left.setBackgroundColor("#F5DEB3");
 	    
-	    rootDirectoryView(left);
-	    left.addMember(treeTabs); 
+	    left.addMember(rootCurrent);
+	    left.addMember(searchForm);
+	    left.addMember(toolStrip);
+	    left.addMember(treeGrid);
+	    
+	    left.addResizedHandler(new ResizedHandler() {
+	    	@Override
+	    	public void onResized (ResizedEvent event){
+	    		query.setWidth(left.getWidth() - 20);
+	    		rootNew.setWidth(left.getWidth() - 20);
+	    	}
+	    });
+	    
+	    rootCurrent.addClickHandler(new ClickHandler() {
+	    	public void onClick(ClickEvent event){
+	    		rootNew.setValue(rootDirectory);
+	    		
+	    		left.removeMember(rootCurrent);
+	    		left.addMember(rootForm, 0);
+	    		
+	    		rootForm.focusInItem(rootNew);
+	    	}
+	    });
+	    
+		rootNew.addKeyUpHandler(new KeyUpHandler() {  
+            public void onKeyUp(KeyUpEvent event) {
+            	String pressed = event.getKeyName();
+            	if (pressed.equals(KeyNames.ENTER)){
+            		// Determine if the tree needs to be updated, set the rot directory
+	            	String newRoot = rootNew.getValueAsString();
+	            	Boolean updateTree = rootDirectory.equals(newRoot) == false;
+	            	rootDirectory = newRoot;
+            		
+            		// Update the view
+	            	rootCurrent.setContents(rootDirectory);
+	            	
+	            	left.removeMember(rootForm);
+            		left.addMember(rootCurrent, 0);
+        	        
+        	        // Update the tree if need be
+        	        if (updateTree){
+        	        	updateFullTree();
+        	        }
+	            }
+            }  
+        });
+	    
 	    
 	    // Main
 		HLayout main = new HLayout();
@@ -303,9 +432,17 @@ public class ServerLibraryManager implements EntryPoint {
 	    layout.draw();
 
 	    // Tree Initialization
-	    treeRefresh();
+	    updateFullTree();
 	    
 	    // Group Initialization
+	    updateGroups(false);
+	}
+	
+	////////////////////////////////////////////////////////////
+	// Private Functions
+	////////////////////////////////////////////////////////////
+	
+	private void updateGroups(final boolean view){
 	    fileServer.getGroups(
     		new AsyncCallback<Group[]>() {
 		        public void onFailure(Throwable caught) {
@@ -317,23 +454,96 @@ public class ServerLibraryManager implements EntryPoint {
 			        	for(Group g : result){
 			        		groups.put(g.name, g);
 			        	}
+		        	} 
+		        	// Testing Code
+		        	else {
+		        		Group test1 = new Group();
+		        		test1.name = "Group1";
+		        		test1.users = "user1, user2, user3";
+		        		test1.canRemove = false;
+		        		
+		        		Group test2 = new Group();
+		        		test2.name = "Group2";
+		        		test2.users = "user4, user1";
+		        		test2.canRemove = true;
+		        		
+		        		groups.put(test1.name, test1);
+		        		groups.put(test2.name, test2);
+		        	}
+		        	
+		        	if (view){
+		        		viewGroups();
 		        	}
 		        }
 		    }
         );
 	}
 	
-	////////////////////////////////////////////////////////////
-	// Private Functions
-	////////////////////////////////////////////////////////////
+	private void sortFullTree(){
+		// Clear the full tree
+		fullTree.removeList(fullTree.getDescendants());
+		
+		LinkedHashMap<String, TreeNode> primaryMap = new LinkedHashMap<String, TreeNode>();
+		LinkedHashMap<String, TreeNode> secondaryMap = new LinkedHashMap<String, TreeNode>();
+		
+		for (Pipefile p : pipes.values()){    		
+    		TreeNode pipeNode = new TreeNode(p.name);
+    		pipeNode.setAttribute("absolutePath", p.absolutePath);
+    		
+    		// Package Tree
+    		TreeNode primaryNode, secondaryNode;
+    		String primaryKey, secondaryKey;
+    		String primaryName, secondaryName;
+    		
+    		if (viewByPackage) {
+    			primaryKey = p.packageName;
+    			primaryName = p.packageName;
+    			
+    			secondaryKey = p.packageName + p.type;
+    			secondaryName = p.type;
+    		} else {
+    			primaryKey = p.type;
+    			primaryName = p.type;
+    			
+    			secondaryKey = p.type + p.packageName;
+    			secondaryName = p.packageName;
+    		}
+    		
+    		// Get primary node, add if needed
+    		if (primaryMap.containsKey(primaryKey)){
+    			primaryNode = primaryMap.get(primaryKey);
+    		} else {
+    			primaryNode = new TreeNode(primaryName);
+    			primaryNode.setAttribute("canSelect", false);
+    			primaryNode.setAttribute("moveHere", viewByPackage);
+    			
+    			fullTree.add(primaryNode, fullTree.getRoot());
+    			
+    			primaryMap.put(primaryKey, primaryNode);
+    		}
+    		
+    		// Get secondary node, add if needed
+    		if (secondaryMap.containsKey(secondaryKey)){
+    			secondaryNode = secondaryMap.get(secondaryKey);
+    		} else {
+    			secondaryNode = new TreeNode(secondaryName);
+    			secondaryNode.setAttribute("canSelect", false);
+    			secondaryNode.setAttribute("moveHere", !viewByPackage);
+    			
+    			fullTree.add(secondaryNode, primaryNode);
+    			
+    			secondaryMap.put(secondaryKey, secondaryNode);
+    		}
+    		
+    		fullTree.add(pipeNode, secondaryNode);
+		}
+	}
 	
 	/**
 	 *  Updates Package Tree and Module Tree based on the rootDirectory
 	 */
-	private void treeRefresh(){
-		// Clear packageTree and moduleTree
-		packageTree.removeList(packageTree.getDescendants());
-		moduleTree.removeList(moduleTree.getDescendants());
+	private void updateFullTree(){
+		treeGrid.setData(fullTree);
 		
 	    // Update Trees
 		fileServer.getFiles(
@@ -345,70 +555,18 @@ public class ServerLibraryManager implements EntryPoint {
 
 		        public void onSuccess(Pipefile[] result) {
 		        	if (result != null) {
-		        		LinkedHashMap<String, TreeNode> packageMap = new LinkedHashMap<String, TreeNode>();
-		        		LinkedHashMap<String, TreeNode> packageTypeMap = new LinkedHashMap<String, TreeNode>();
-		        	
-		        		LinkedHashMap<String, TreeNode> typeMap = new LinkedHashMap<String, TreeNode>();
-		        		LinkedHashMap<String, TreeNode> typePackageMap = new LinkedHashMap<String, TreeNode>();
-		        	
-			        	for (Pipefile p : result){
+		        		
+		        		LinkedHashSet<String> packageNames = new LinkedHashSet<String>();
+		        		for (Pipefile p : result){
 			        		pipes.put(p.absolutePath, p);
-			        		
-			        		TreeNode pipe = new TreeNode(p.name);
-			        		pipe.setAttribute("absolutePath", p.absolutePath);
-			        		
-			        		// Package Tree
-			        		TreeNode packageTreeGrandParent;
-			        		
-			        		if (packageMap.containsKey(p.packageName)){
-			        			packageTreeGrandParent = packageMap.get(p.packageName);
-			        		} else {
-			        			packageTreeGrandParent = new TreeNode(p.packageName);
-			        			packageTree.add(packageTreeGrandParent, packageTree.getRoot());
-			        			packageMap.put(p.packageName, packageTreeGrandParent);
-			        		}
-			        		
-			        		TreeNode packageTreeParent;
-			        		String package_type = p.packageName + p.type;
-			        		
-			        		if (packageTypeMap.containsKey(package_type)){
-			        			packageTreeParent = packageTypeMap.get(package_type);
-			        		} else {
-			        			packageTreeParent = new TreeNode(p.type);
-			        			packageTree.add(packageTreeParent, packageTreeGrandParent);
-			        			packageTypeMap.put(package_type, packageTreeParent);
-			        		}
-			        		
-			        		packageTree.add(pipe, packageTreeParent);
-			        		
-			        		// Module Tree
-			        		TreeNode moduleTreeGrandParent;
-			        		
-			        		if (typeMap.containsKey(p.type)){
-			        			moduleTreeGrandParent = typeMap.get(p.type);
-			        		} else {
-			        			moduleTreeGrandParent = new TreeNode(p.type);
-			        			moduleTree.add(moduleTreeGrandParent, moduleTree.getRoot());
-			        			typeMap.put(p.type, moduleTreeGrandParent);
-			        		}
-			        		
-			        		TreeNode moduleTreeParent;
-			        		String type_package = p.type + p.packageName ;
-			        		
-			        		if (typePackageMap.containsKey(type_package)){
-			        			moduleTreeParent = typePackageMap.get(type_package);
-			        		} else {
-			        			moduleTreeParent = new TreeNode(p.packageName);
-			        			moduleTree.add(moduleTreeParent, moduleTreeGrandParent);
-			        			typePackageMap.put(type_package, moduleTreeParent);
-			        		}
-			        		
-			        		moduleTree.add(pipe, moduleTreeParent);
+			        		packageNames.add(p.packageName);
 			        	}
-		        	
-			        	packages = new String[packageMap.size()];
-			        	packages = packageMap.keySet().toArray(packages);
+		        		
+		        		packages = new String[packageNames.size()];
+		        		packages = packageNames.toArray(packages);
 		        	}
+		        	
+		        	sortFullTree();
 		        }
 		    }
         );
@@ -417,38 +575,36 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *  Updates ResultsTree based on what query is returned by the server
 	 */
-	private void treeResults(final String query){
-		if (query != null && query.length() >= 2){
-			fileServer.getSearchResults(
-	            rootDirectory,
-	            query,
-	            new AsyncCallback<Pipefile[]>() {
-			        public void onFailure(Throwable caught) {
-			        	error("Failed to retrieve search results: "+ caught.getMessage());
-			        }
-	
-			        public void onSuccess(Pipefile[] result) {
-			        	// Clear the ResultsTree
-			        	resultsTree.removeList(resultsTree.getDescendants());
-			        	
-			        	if (result != null){
-			        		for (Pipefile p : result){
-			        			if (pipes.containsKey(p.absolutePath) == false){
-			        				pipes.put(p.absolutePath, p);
-			        			}
-				        		
-				        		TreeNode pipe = new TreeNode(p.name);
-				        		pipe.setAttribute("absolutePath", p.absolutePath);
-				        		
-				        		resultsTree.add(pipe, resultsTree.getRoot());
-			        		}
-			        	}
-			        }
-			    }
-	        );
-		} else {
-			resultsTree.removeList(resultsTree.getDescendants());
-		}
+	private void updateResultsTree(final String query){
+		treeGrid.setData(resultsTree);
+		
+		fileServer.getSearchResults(
+            rootDirectory,
+            query,
+            new AsyncCallback<Pipefile[]>() {
+		        public void onFailure(Throwable caught) {
+		        	error("Failed to retrieve search results: "+ caught.getMessage());
+		        }
+
+		        public void onSuccess(Pipefile[] result) {
+		        	// Clear the ResultsTree
+		        	resultsTree.removeList(resultsTree.getDescendants());
+		        	
+		        	if (result != null){
+		        		for (Pipefile p : result){
+		        			if (pipes.containsKey(p.absolutePath) == false){
+		        				pipes.put(p.absolutePath, p);
+		        			}
+			        		
+			        		TreeNode pipe = new TreeNode(p.name);
+			        		pipe.setAttribute("absolutePath", p.absolutePath);
+			        		
+			        		resultsTree.add(pipe, resultsTree.getRoot());
+		        		}
+		        	}
+		        }
+		    }
+        );
 	}
 	
 	private void fileOperationsActions(final Pipefile[] selected){
@@ -480,7 +636,7 @@ public class ServerLibraryManager implements EntryPoint {
 		
 				    public void onSuccess(Void result){
 				    	basicInstructions();
-				    	treeRefresh();
+				    	updateFullTree();
 				    }
 				});
 			}
@@ -509,7 +665,7 @@ public class ServerLibraryManager implements EntryPoint {
 		
 				    public void onSuccess(Void result){
 				    	basicInstructions();
-				    	treeRefresh(); 
+				    	updateFullTree();
 				    }
 				});
 			}
@@ -524,7 +680,7 @@ public class ServerLibraryManager implements EntryPoint {
 		
 				    public void onSuccess(Void result){
 				    	basicInstructions();
-				    	treeRefresh();  
+				    	updateFullTree(); 
 				    }
 				});
 			}
@@ -623,7 +779,6 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		// Title
 		Label editFileTitle = new Label("Edit File");
-		editFileTitle.setHeight(20);
 		editFileTitle.setStyleName("workarea-title");
 		workarea.addMember(editFileTitle);
 		
@@ -717,31 +872,146 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Updates workarea with a list of the groups 
 	 */
 	private void viewGroups(){
-		// TODO		
-		// Create a table
+		clearWorkarea();
 		
-		// For each group
-		//   Create a row in a table
-		//   First column = name
-		//   Second column = user list
-		//   Third column = Edit Button
-		//      OnClick - call groupEdit
-		//   Fourth = Remove Button
-		//      Disabled if the group is in use
-		//      OnClick - call removeGroup, then groupViewSummary
+		int width = 600;
+		
+		// Title
+		Label title = new Label("Manage Groups");
+		title.setHeight(30);
+		title.setStyleName("workarea-title");
+		
+		// Description
+		Label description = new Label(
+			"Double click a group to edit it " +
+			"or mark the checkboxes of groups you want to delete then click \"Remove Selected Groups\"<br/>" +
+			"Groups without a checkbox are in use and cannot be deleted. More info can be found in the edit screen."
+		);
+		description.setHeight(50);
+		description.setStyleName("workarea-description");
+		
+		// Group Grid
+		ListGridField nField = new ListGridField("name", "Name");  
+        ListGridField uField = new ListGridField("users", "Users");
+        
+		final ListGrid grid = new ListGrid();
+		grid.setFields(nField, uField);
+		grid.setWidth(width);
+		grid.setShowRollOver(false);
+		grid.setSelectionAppearance(SelectionAppearance.CHECKBOX);
+		
+        Collection<Group> groupsCollection = groups.values();
+        
+		ListGridRecord[] records = new ListGridRecord[groupsCollection.size()];
+
+		int i = 0;
+		for(Group group : groupsCollection){
+			ListGridRecord record = new ListGridRecord();
+			record.setAttribute("name", group.name);
+			record.setAttribute("users", group.users);
+			
+			if (group.canRemove == false){
+				record.setAttribute("canSelect", false);
+			}
+			
+			records[i++] = record;
+		}
+		
+		grid.setData(records);
+		
+		grid.addRecordDoubleClickHandler(new RecordDoubleClickHandler(){
+			public void onRecordDoubleClick(RecordDoubleClickEvent event){
+				Record r = event.getRecord();
+				
+				String groupName = r.getAttribute("name");
+				Group g = groups.get(groupName);
+				
+				editGroup(g);
+			}
+		});
+		
+		
+		// ToolStrip
+		ToolStripButton newGroup = new ToolStripButton("New Group");
+		newGroup.addClickHandler(new ClickHandler(){
+			public void onClick(ClickEvent event){
+				Group newGroup = new Group();
+				editGroup(newGroup);
+			}
+		});
+		
+		ToolStripButton removeGroups = new ToolStripButton("Remove Selected Groups");
+		removeGroups.addClickHandler(new ClickHandler(){
+			public void onClick(ClickEvent event){
+				// TODO
+				// Get the selected groups
+				// Call removeGroups
+			}
+		});
+		
+		ToolStrip top = new ToolStrip();
+		top.setWidth(width);
+		top.addSpacer(1);
+		top.addButton(newGroup);
+		top.addSeparator();
+		top.addButton(removeGroups);
+		
+		workarea.addMember(title);
+		workarea.addMember(description);
+		workarea.addMember(top);
+		workarea.addMember(grid);
 	}
 
 	/**
 	 *  Updates workarea with a form to edit a group 
 	 *  @param groupIndex is an index into the currentGroups
 	 */
-	private void editGroup(String groupName){
-		// TODO
+	private void editGroup(final Group g){
+		clearWorkarea();
 		
-		// Find the group in the private variable
+		boolean newGroup = (g.groupId == -1);
+		int width = 400;
 		
-		// Create a form
-		// Textarea to edit the users 
+		// Title
+		Label title = new Label(newGroup ? "New Group" : "Edit Group");
+		title.setHeight(30);
+		title.setStyleName("workarea-title");
+		
+		// Form for editing
+		final TextItem name = new TextItem("Name");
+		name.setValue(g.name);
+		name.setWidth(width);
+		
+		final TextAreaItem users = new TextAreaItem("Users");
+		users.setValue(g.users);
+		users.setWidth(width);
+		users.setHeight(100);
+		
+		DynamicForm form = new DynamicForm();
+		form.setFields(name, users);
+		form.setPadding(10);
+		
+		Button update = new Button("Update");
+		update.addClickHandler(new ClickHandler(){
+			public void onClick(ClickEvent event){				
+				g.name = name.getValueAsString();
+				g.users = users.getValueAsString();
+				
+				fileServer.updateGroup(g, new AsyncCallback<Void>(){
+					public void onFailure(Throwable caught) {
+			        	error("Failed to update group: "+ caught.getMessage());
+			        }
+
+			        public void onSuccess(Void result) {
+			        	updateGroups(true);
+			        }
+				});
+			}
+		});
+		
+		workarea.addMember(title);
+		workarea.addMember(form);
+		workarea.addMember(update);		
 	}
 	
 	/**
@@ -757,82 +1027,53 @@ public class ServerLibraryManager implements EntryPoint {
 		//   On click, import the files, go back to basic instructions
 	}
 	
-	
-	/**
-	 *  Updates the page so the user can view the root directory
-	 *  @param container canvas to place the objects in
-	 */
-	private void rootDirectoryView(final VLayout container){		
-		final Label current = new Label(rootDirectory);
-		current.setHeight(40);
-	    current.setAlign(Alignment.CENTER);
-	    
-	    current.addClickHandler(new ClickHandler() {
-	    	public void onClick(ClickEvent event){
-	    		// Update the view
-	    		container.removeMember(current);
-	    		rootDirectoyEdit(container);
-	    	}
-	    });
-	    
-	    container.addMember(current, 0);
-	}
-	
-	/**
-	 *  Updates the page so the user can edit the root directory
-	 *  @param container canvas to place the objects in
-	 */
-	private void rootDirectoyEdit(final VLayout container){
-		final TextItem newDir = new TextItem();
-		newDir.setDefaultValue(rootDirectory);
-		newDir.setShowTitle(false);
-		newDir.setWidth(289);
-		
-		final DynamicForm form = new DynamicForm();
-		form.setHeight(40);
-		form.setMargin(5);
-		form.setAlign(Alignment.CENTER);
-		form.setFields(new FormItem[] {newDir});
-		
-		newDir.addKeyUpHandler(new KeyUpHandler() {  
-            public void onKeyUp(KeyUpEvent event) {
-            	String pressed = event.getKeyName();
-            	if (pressed.equals(KeyNames.ENTER)){
-            		// Determine if the tree needs to be updated, set the rot directory
-	            	String newRoot = newDir.getValueAsString();
-	            	Boolean updateTree = rootDirectory.equals(newRoot) == false;
-	            	rootDirectory = newRoot;
-            		
-            		// Update the view
-            		container.removeMember(form);
-        	        rootDirectoryView(container);
-        	        
-        	        // Update the tree if need be
-        	        if (updateTree){
-        	        	treeRefresh();
-        	        }
-	            }
-            }  
-        });
-		
-		container.addMember(form, 0);
-		form.focusInItem(newDir);
-	}
-	
 	/**
 	 *  Updates workarea with the basic instructions
 	 */
 	private void basicInstructions(){
 		clearWorkarea();
-		// TODO, add actual basic instructions
-		workarea.addMember(new Label("Basic Instructions"));
+		
+		Label root = new Label("This is your root directory. Click on it to edit.");
+		root.setIcon("leftarrow.jpg");
+		root.setIconWidth(30);
+		root.setHeight(40);
+		root.setStyleName("workarea-description");
+		root.setValign(VerticalAlignment.TOP);
+		
+		Label search = new Label("Use this to search for files. Search must be at least 2 letters.");
+		search.setIcon("leftarrow.jpg");
+		search.setIconWidth(30);
+		search.setHeight(30);
+		search.setStyleName("workarea-description");
+		search.setValign(VerticalAlignment.TOP);
+		
+		Label view = new Label("Use these buttons to reorder the hierarchy");
+		view.setIcon("leftarrow.jpg");
+		view.setIconWidth(30);
+		view.setHeight(50);
+		view.setStyleName("workarea-description");
+		view.setValign(VerticalAlignment.TOP);
+		
+		workarea.addMember(root);
+		workarea.addMember(search);
+		workarea.addMember(view);
+		
+		Label files = new Label(
+			"Select any file to view and edit its properties and perform file operations<br/>" +
+			"You can also select multiple files at once and perform the same operation on all of them"
+		);
+		files.setHeight(60);
+		files.setStyleName("workarea-description");
+		files.setValign(VerticalAlignment.TOP);
+		
+		workarea.addMember(files);
 	}
 	
 	/**
 	 *  Clears the workarea
 	 */
 	private void clearWorkarea(){
-		workarea.removeMembers( workarea.getMembers() );
+		workarea.removeMembers(workarea.getMembers());
 	}
 	
 	private void error(String message){
