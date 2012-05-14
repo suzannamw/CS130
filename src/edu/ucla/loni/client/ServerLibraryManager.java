@@ -9,6 +9,8 @@ import java.util.LinkedHashSet;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.http.client.URL;
+import com.google.gwt.regexp.shared.MatchResult;
+import com.google.gwt.regexp.shared.RegExp;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
@@ -826,14 +828,21 @@ public class ServerLibraryManager implements EntryPoint {
 		description.setTitle("Description");
 		description.setName("description");
 		description.setWidth(600);
-	
-		TextItem input = new TextItem();
-		input.setTitle("Input");
-		input.setName("input");
 		
-		TextItem output = new TextItem();
-		output.setTitle("Output");
-		output.setName("output");
+		TextAreaItem tags = new TextAreaItem();
+		tags.setTitle("Tags");
+		tags.setName("tags");
+		tags.setWidth(600);
+	
+		TextAreaItem values = new TextAreaItem();
+		values.setTitle("Values");
+		values.setName("values");
+		values.setWidth(600);
+		
+		TextItem formatType = new TextItem();
+		formatType.setTitle("Format Type");
+		formatType.setName("formatType");
+		formatType.setWidth(600);
 		
 		TextItem location = new TextItem();
 		location.setTitle("Location");
@@ -859,23 +868,31 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
 		
-		form.setFields(name, packageName, type, description, location, uri, input, output, access, accessInfo);
+		form.setFields(name, packageName, type, description, tags, location, uri, values, formatType, access, accessInfo);
 		form.setValue("name", pipe.name);
 		form.setValue("package", pipe.packageName);
 		form.setValue("type", pipe.type);
 		form.setValue("description", pipe.description);
+		form.setValue("tags",pipe.tags);
 		form.setValue("access", pipe.access);
 		updateAccessInfo(access, accessInfo);
 		
-		if(pipe.type.equals("Data"))
-			;//TODO fill in later with the input and output data
+		if(pipe.type.equals("Data")){
+			form.setValue("values", pipe.values);
+			form.setValue("formatType", pipe.formatType);
+		}
 		else{
-			form.hideItem("output");
-			form.hideItem("input");
+			form.hideItem("values");
+			form.hideItem("formatType");
 		}
 		
-		if(pipe.type.equals("Modules"))
-			form.setValue("location", pipe.location);
+		if(pipe.type.equals("Modules")){
+			String loc;
+			RegExp re = RegExp.compile(".*://.*/(.*)");
+			MatchResult m = re.exec(pipe.location);
+			loc = m.getGroup(1); 
+			form.setValue("location", loc);
+		}
 		else
 			form.hideItem("location");
 		
