@@ -138,27 +138,30 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param packageName absolute path of the package
 	 */
 	private void copyFile(Pipefile pipe, String packageName) throws Exception {
-		// If the file exists
-		//   Copy the file to the new destination
-		//     File must be changed update the package
-		//   Insert a row corresponding to this file in the database
-		
-		
-		
 		// Get old and new absolute path directory
 		String oldAbsolutePath = pipe.absolutePath;
-		File src = new File(oldAbsolutePath);
+		String newAbsolutePath = ServerUtils.newAbsolutePath(pipe.absolutePath, packageName, pipe.type);
 		
+		File src = new File(oldAbsolutePath);
+		File dest = new File(newAbsolutePath);
+		
+		// If the source does not exist
 		if (!src.exists()) return;
 		
-		String newAbsolutePath = ServerUtils.newAbsolutePath(pipe.absolutePath, packageName, pipe.type);
-		File dest = new File(newAbsolutePath);
-		Files.copy(src, dest);
+		// If the destination directory does not exist, create it and necessary parent directories
+		File destDir = dest.getParentFile();
+		if (destDir.exists() == false){
+			boolean success = destDir.mkdirs();
+			if (!success){
+				throw new Exception("Destination folders could not be created");
+			}
+		}
 		
-		
-		Pipefile newPipe = pipe;
-		
+		// Copy the file
+		Files.copy(src, dest);	
+
 		// Update Pipefile
+		Pipefile newPipe = pipe;
 		newPipe.packageName = packageName;
 		newPipe.absolutePath = newAbsolutePath;
 		
@@ -187,6 +190,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		File src = new File(oldAbsolutePath);
 		File dest = new File(newAbsolutePath);
 		
+		// If the source does not exist
+		if (!src.exists()) return;
+		
 		// If the destination directory does not exist, create it and necessary parent directories
 		File destDir = dest.getParentFile();
 		if (destDir.exists() == false){
@@ -213,6 +219,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		
 		// Update Database
 		Database.updatePipefile(pipe, new Timestamp(dest.lastModified()));
+		
+		// Recursive delete of parent (if necessary)
+		ServerUtils.recursiveRemoveDir(src.getParentFile());
 	}
 	
 	////////////////////////////////////////////////////////////
