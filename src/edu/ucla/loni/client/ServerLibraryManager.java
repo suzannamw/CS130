@@ -52,6 +52,7 @@ import com.smartgwt.client.widgets.layout.HLayout;
 import com.smartgwt.client.widgets.layout.VLayout;
 import com.smartgwt.client.widgets.menu.Menu;
 import com.smartgwt.client.widgets.menu.MenuItem;
+import com.smartgwt.client.widgets.menu.events.MenuItemClickEvent;
 import com.smartgwt.client.widgets.toolbar.ToolStrip;
 import com.smartgwt.client.widgets.toolbar.ToolStripButton;
 import com.smartgwt.client.widgets.tree.Tree;
@@ -187,7 +188,8 @@ public class ServerLibraryManager implements EntryPoint {
 		public void onNodeContextClick(NodeContextClickEvent event){
 			TreeGrid grid = event.getViewer();
 			Tree tree = grid.getData();
-			TreeNode clicked = event.getNode();
+			final TreeNode clicked = event.getNode();
+			final String name = clicked.getName();
 			
 			Menu contextMenu = new Menu();
 			
@@ -203,14 +205,40 @@ public class ServerLibraryManager implements EntryPoint {
 					msg.setEnabled(false);
 					contextMenu.addItem(msg);
 				} else {
-					MenuItem copy = new MenuItem("Copy selected files (" + numSelected + ")");
+					MenuItem copy = new MenuItem("Copy selected files (" + numSelected + ") to " + name);
+					copy.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+						public void onClick(MenuItemClickEvent event){
+							copyFiles(selectedPipes, name);
+						}
+					});
+					
+					MenuItem move = new MenuItem("Move selected files (" + numSelected + ") to " + name);
+					move.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+						public void onClick(MenuItemClickEvent event){
+							moveFiles(selectedPipes, name);
+						}
+					});
+					
 					contextMenu.addItem(copy);
-					MenuItem move = new MenuItem("Move selected files (" + numSelected + ")");
 					contextMenu.addItem(move);
 				}
 			} else {			
-				MenuItem download = new MenuItem("Download");
-				MenuItem remove = new MenuItem("Remove");
+				MenuItem download = new MenuItem("Download " + name);
+				download.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+					public void onClick(MenuItemClickEvent event){
+						Pipefile pipe = pipes.get(clicked.getAttribute("absolutePath"));
+						Pipefile[] toDownload = { pipe }; 
+						downloadFiles(toDownload);
+					}
+				});
+				MenuItem remove = new MenuItem("Remove " + name);
+				remove.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+					public void onClick(MenuItemClickEvent event){
+						Pipefile pipe = pipes.get(clicked.getAttribute("absolutePath"));
+						Pipefile[] toRemove = { pipe }; 
+						removeFiles(toRemove);
+					}
+				});
 				
 				contextMenu.addItem(download);
 				contextMenu.addItem(remove);
