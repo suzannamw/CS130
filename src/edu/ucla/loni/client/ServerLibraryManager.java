@@ -58,8 +58,6 @@ import com.smartgwt.client.widgets.toolbar.ToolStripButton;
 import com.smartgwt.client.widgets.tree.Tree;
 import com.smartgwt.client.widgets.tree.TreeGrid;
 import com.smartgwt.client.widgets.tree.TreeNode;
-import com.smartgwt.client.widgets.tree.events.LeafClickEvent;
-import com.smartgwt.client.widgets.tree.events.LeafClickHandler;
 import com.smartgwt.client.widgets.tree.events.NodeContextClickEvent;
 import com.smartgwt.client.widgets.tree.events.NodeContextClickHandler;
 
@@ -157,12 +155,11 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   NodeClickHandler for when a pipefile is selected within a tree
 	 */
-	private LeafClickHandler pipefileClickHandler = new LeafClickHandler() {
-		public void onLeafClick(LeafClickEvent event){
-			TreeGrid grid = event.getViewer();
-			
-			ListGridRecord[] selected = grid.getSelectedRecords();
+	private SelectionUpdatedHandler selectedPipefilesHandler = new SelectionUpdatedHandler() {
+		public void onSelectionUpdated(SelectionUpdatedEvent event){			
+			ListGridRecord[] selected = treeGrid.getSelectedRecords();
 			int numSelected = selected.length;
+			
 			if (numSelected == 0){
 				basicInstructions();
 			}
@@ -390,7 +387,7 @@ public class ServerLibraryManager implements EntryPoint {
 	    treeGrid.setData(fullTree);
 	    treeGrid.setShowConnectors(true);
 	    treeGrid.setShowRollOver(false);
-	    treeGrid.addLeafClickHandler(pipefileClickHandler);
+	    treeGrid.addSelectionUpdatedHandler(selectedPipefilesHandler);
 	    treeGrid.addNodeContextClickHandler(contextClickHandler);
 	    
 	    // Left 	    
@@ -540,7 +537,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 * Makes the RPC to updateFile
 	 */
 	private void updateFile(final Pipefile pipe){
-		fileServer.updateFile(pipe, new AsyncCallback<Void>() {
+		fileServer.updateFile(rootDirectory, pipe, new AsyncCallback<Void>() {
         	public void onFailure(Throwable caught) {
 		        error("Failed to update file: " + caught.getMessage());
 		    }
@@ -556,7 +553,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 * Makes the RPC to removeFiles
 	 */
 	private void removeFiles(final Pipefile[] selected){
-		fileServer.removeFiles(selected, new AsyncCallback<Void>() {
+		fileServer.removeFiles(rootDirectory, selected, new AsyncCallback<Void>() {
         	public void onFailure(Throwable caught) {
 		        error("Failed to remove file(s): " + caught.getMessage());
 		    }
@@ -573,7 +570,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 * Makes the RPC to copyFiles
 	 */
 	private void copyFiles(final Pipefile[] selected, final String packageName){
-		fileServer.copyFiles(selected, packageName, new AsyncCallback<Void>() {
+		fileServer.copyFiles(rootDirectory, selected, packageName, new AsyncCallback<Void>() {
         	public void onFailure(Throwable caught) {
 		        error("Failed to copy file(s): " + caught.getMessage());
 		    }
@@ -590,7 +587,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 * Makes the RPC to moveFiles
 	 */
 	private void moveFiles(final Pipefile[] selected, final String packageName){
-		fileServer.moveFiles(selected, packageName, new AsyncCallback<Void>() {
+		fileServer.moveFiles(rootDirectory, selected, packageName, new AsyncCallback<Void>() {
 			public void onFailure(Throwable caught) {
 		        error("Failed to move file(s): " + caught.getMessage());
 		    }
@@ -609,7 +606,7 @@ public class ServerLibraryManager implements EntryPoint {
 	private void getGroups(final boolean view){		
 		groups.clear();
 		
-		fileServer.getGroups(new AsyncCallback<Group[]>() {
+		fileServer.getGroups(rootDirectory, new AsyncCallback<Group[]>() {
 	        public void onFailure(Throwable caught) {
 	        	error("Failed to retrieve groups: " + caught.getMessage());
 	        }
@@ -632,7 +629,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 * Makes the RPC to updateGroup
 	 */
 	private void updateGroup(final Group group){		
-		fileServer.updateGroup(group, new AsyncCallback<Void>() {
+		fileServer.updateGroup(rootDirectory, group, new AsyncCallback<Void>() {
 	        public void onFailure(Throwable caught) {
 	        	error("Failed to update group: " + caught.getMessage());
 	        }
@@ -648,7 +645,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 * Makes the RPC to getGroups
 	 */
 	private void removeGroups(final Group[] groups){		
-		fileServer.removeGroups(groups, new AsyncCallback<Void>(){
+		fileServer.removeGroups(rootDirectory, groups, new AsyncCallback<Void>(){
 			public void onFailure(Throwable caught) {
 	        	error("Failed to remove groups: "+ caught.getMessage());
 	        }

@@ -11,13 +11,13 @@ public interface FileService extends RemoteService {
 	
 	Pipefile[] 	getSearchResults(String root, String query) throws Exception;
 	
-	void 		updateFile(Pipefile pipe) throws Exception;
+	void 		updateFile(String root, Pipefile pipe) throws Exception;
 	
-	void		removeFiles(Pipefile[] pipes) throws Exception;	
-	void 		copyFiles(Pipefile[] pipes, String packageName) throws Exception;
-	void 		moveFiles(Pipefile[] pipes, String packageName) throws Exception;
+	void		removeFiles(String root, Pipefile[] pipes) throws Exception;	
+	void 		copyFiles(String root, Pipefile[] pipes, String packageName) throws Exception;
+	void 		moveFiles(String root, Pipefile[] pipes, String packageName) throws Exception;
 	
-	Group[]		getGroups() throws Exception;
-	void		updateGroup(Group group) throws Exception;
-	void		removeGroups(Group[] groups) throws Exception;
+	Group[]		getGroups(String root) throws Exception;
+	void		updateGroup(String root, Group group) throws Exception;
+	void		removeGroups(String root, Group[] groups) throws Exception;
 }
