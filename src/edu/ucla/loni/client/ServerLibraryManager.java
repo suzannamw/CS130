@@ -442,7 +442,7 @@ public class ServerLibraryManager implements EntryPoint {
 	    updateFullTree();
 	    
 	    // Group Initialization
-	    updateGroups(false);
+	    getGroups(false);
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -453,6 +453,8 @@ public class ServerLibraryManager implements EntryPoint {
 	 * Makes the RPC to getFiles
 	 */
 	private void getFiles(){
+		pipes.clear();
+		
 		fileServer.getFiles(rootDirectory, new AsyncCallback<Pipefile[]>() {
 		        public void onFailure(Throwable caught) {
 		        	error("Failed to retrieve files: " + caught.getMessage());
@@ -576,7 +578,9 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 * Makes the RPC to getGroups
 	 */
-	private void getGroups(){		
+	private void getGroups(final boolean view){		
+		groups.clear();
+		
 		fileServer.getGroups(new AsyncCallback<Group[]>() {
 	        public void onFailure(Throwable caught) {
 	        	error("Failed to retrieve groups: " + caught.getMessage());
@@ -587,6 +591,10 @@ public class ServerLibraryManager implements EntryPoint {
 		        	for(Group g : result){
 		        		groups.put(g.name, g);
 		        	}
+	        	}
+	        	
+	        	if (view){
+	        		viewGroups();
 	        	}
 	        }
 	    });
@@ -602,7 +610,7 @@ public class ServerLibraryManager implements EntryPoint {
 	        }
 
 	        public void onSuccess(Void result) {
-	        	updateGroups(true);
+	        	getGroups(true);
 	        	success("Successfully updated " + group.name + ".");
 	        }
 	    });
@@ -618,7 +626,7 @@ public class ServerLibraryManager implements EntryPoint {
 	        }
 
 	        public void onSuccess(Void result) {
-	        	updateGroups(true);
+	        	getGroups(true);
 	        	success("Successfully removed " + groups.length + " file(s).");
 	        }
 		});
@@ -715,7 +723,6 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Ensure tree is displayed
 	 */
 	private void updateFullTree(){
-		pipes.clear();
 		treeGrid.setData(fullTree);
 		getFiles();
 	}
@@ -868,35 +875,45 @@ public class ServerLibraryManager implements EntryPoint {
 	// Private Functions - Workarea - View File
 	////////////////////////////////////////////////////////////
 	
-	/**
-	 *  Updates the accessInfo to tell the user about groups
-	 */
-	private void updateAccessInfo(TextAreaItem access, StaticTextItem accessInfo){
-		String info = 
-				"Enter a comma seperated list of users and groups (syntax = g:groupName).<br/>" +
-				"What each group resolves to will appear here.<br/>";;
+	private String loopFound = "<b>LOOP IN GROUP DEPENDENCIES</b>";
+	
+	private String expandGroups(String originalGroup, String list, String base){
+		String ret = "";
 		
-		String list = access.getValueAsString();
-		if (list != null && list.length() > 0){
-			String[] agents = list.split(",");
+		String[] agents = list.split(",");
+		
+		for(String agent : agents){
+			agent = agent.trim();
 			
-			for(String agent : agents){
-				agent = agent.trim();
+			if (agent.startsWith("g:")){
+				String groupName = agent.substring(2);
 				
-				if (agent.startsWith("g:")){
-					String groupName = agent.substring(2);
-					
-					if (groups.containsKey(groupName)){
-						Group g = groups.get(groupName);
-						info += "<br/>" + agent + " = " + g.users;
-					} else {
-						info += "<br/>" + agent + " is undefined";
+				if (groups.containsKey(groupName)){
+					Group g = groups.get(groupName);
+					if (g.name.equals(originalGroup)){
+						ret += base + loopFound;
+						return ret;
 					}
+					ret += base + agent + " = " + g.users + "<br/>";
+					ret += expandGroups(originalGroup, g.users, base + "&nbsp;&nbsp;&nbsp;&nbsp;");
+				} else {
+					ret += base + agent + " is undefined" + "<br/>";;
 				}
 			}
 		}
 		
-		accessInfo.setValue(info);
+		return ret;
+	}
+	
+	/**
+	 *  Updates the accessInfo to tell the user about groups
+	 */
+	private boolean updateAccessInfo(String groupName, String accessList, StaticTextItem info){
+		String msg = expandGroups(groupName, accessList, "");
+		
+		info.setValue(msg);
+		
+		return msg.endsWith(loopFound);
 	}
 	
 	/**
@@ -918,18 +935,19 @@ public class ServerLibraryManager implements EntryPoint {
 		final DynamicForm form = new DynamicForm();
 		form.setCanEdit(true);
         form.setPadding(10);
-        form.setWidth(800);
         form.setStyleName("edit-form");
 		
+        int width = 400;
+        
 		TextItem name = new TextItem();
 		name.setTitle("Name");
 		name.setName("name");
-		name.setWidth(600);
+		name.setWidth(width);
 		
 		TextItem packageName = new TextItem();
 		packageName.setTitle("Package");
 		packageName.setName("package");
-		packageName.setWidth(600);
+		packageName.setWidth(width);
 		
 		StaticTextItem type = new StaticTextItem();
 		type.setTitle("Type");
@@ -938,44 +956,49 @@ public class ServerLibraryManager implements EntryPoint {
 		TextAreaItem description = new TextAreaItem();
 		description.setTitle("Description");
 		description.setName("description");
-		description.setWidth(600);
+		description.setWidth(width);
 		
-		TextAreaItem tags = new TextAreaItem();
+		TextItem tags = new TextItem();
 		tags.setTitle("Tags");
 		tags.setName("tags");
-		tags.setWidth(600);
+		tags.setWidth(width);
+		tags.setHint("Comma separated list");
 	
 		TextAreaItem values = new TextAreaItem();
 		values.setTitle("Values");
 		values.setName("values");
-		values.setWidth(600);
+		values.setWidth(width);
+		values.setHint("Newline separated list<br/> Prefix = "); // TODO
 		
 		TextItem formatType = new TextItem();
 		formatType.setTitle("Format Type");
 		formatType.setName("formatType");
-		formatType.setWidth(600);
+		formatType.setWidth(width);
 		
 		TextItem location = new TextItem();
 		location.setTitle("Location");
 		location.setName("location");
-		location.setWidth(600);
+		location.setWidth(width);
+		location.setHint("Prefix = "); // TODO
 		
 		TextItem uri = new TextItem();
 		uri.setTitle("URI");
 		uri.setName("uri");
-		uri.setWidth(600);
+		uri.setWidth(width);
 		
 		final TextAreaItem access = new TextAreaItem();
 		access.setTitle("Access");
 		access.setName("access");
-		access.setWidth(600);
+		access.setWidth(width);
+		access.setHeight(50);
+		access.setHint("Comma separated list<br/>Group syntax = g:groupName<br/>Groups expanded below");
 		
 		final StaticTextItem accessInfo = new StaticTextItem();
 		accessInfo.setTitle("Access Info");
 		
 		access.addChangedHandler(new ChangedHandler(){
 			public void onChanged(ChangedEvent event){
-				updateAccessInfo(access, accessInfo);
+				updateAccessInfo("", access.getValueAsString(), accessInfo);
 			}
 		});
 		
@@ -986,7 +1009,7 @@ public class ServerLibraryManager implements EntryPoint {
 		form.setValue("description", pipe.description);
 		form.setValue("tags",pipe.tags);
 		form.setValue("access", pipe.access);
-		updateAccessInfo(access, accessInfo);
+		updateAccessInfo("", access.getValueAsString(), accessInfo);
 		
 		if(pipe.type.equals("Data")){
 			//TODO: fix this stuff!!!!
@@ -1069,18 +1092,6 @@ public class ServerLibraryManager implements EntryPoint {
 	////////////////////////////////////////////////////////////
 	// Private Functions - Workarea - Groups
 	////////////////////////////////////////////////////////////
-	
-	/**
-	 *  Refreshes the groups 
-	 */
-	private void updateGroups(boolean view){
-		groups.clear();
-		getGroups();
-		
-		if (view){
-			viewGroups();
-		}
-	}
 	
 	/**
 	 *  Sets workarea to a list of the groups 
@@ -1216,20 +1227,33 @@ public class ServerLibraryManager implements EntryPoint {
 		name.setValue(g.name);
 		name.setWidth(width);
 		
-		final TextAreaItem users = new TextAreaItem("Users");
-		users.setValue(g.users);
-		users.setWidth(width);
-		users.setHeight(100);
+		final TextAreaItem agents = new TextAreaItem("Agents");
+		agents.setValue(g.users);
+		agents.setWidth(width);
+		agents.setHeight(50);
+		agents.setHint("Comma separated list<br/>Group syntax = g:groupName<br/>Groups expanded below");
+		
+		final StaticTextItem agentsInfo = new StaticTextItem();
+		agentsInfo.setTitle("Access Info");
+		
+		
+		agents.addChangedHandler(new ChangedHandler(){
+			public void onChanged(ChangedEvent event){
+				updateAccessInfo(g.name, agents.getValueAsString(), agentsInfo);
+			}
+		});
 		
 		DynamicForm form = new DynamicForm();
-		form.setFields(name, users);
+		form.setFields(name, agents, agentsInfo);
 		form.setPadding(10);
+		updateAccessInfo(g.name, agents.getValueAsString(), agentsInfo);
 		
 		Button update = new Button("Update");
 		update.addClickHandler(new ClickHandler(){
 			public void onClick(ClickEvent event){				
 				g.name = name.getValueAsString();
-				g.users = users.getValueAsString();
+				g.users = agents.getValueAsString();
+				boolean loop = updateAccessInfo(g.name, g.users, agentsInfo);
 				
 				if (g.name == null || g.name.equals("")){
 					SC.say("Name cannot be blank"); 
@@ -1239,6 +1263,9 @@ public class ServerLibraryManager implements EntryPoint {
 				}
 				else if (newGroup && groups.containsKey(g.name)){
 					SC.say("Name (" + g.name + ") is already in use. Please choose another name."); 
+				}
+				else if (loop){
+					SC.say("Loop in group dependencies. Please remove this loop."); 
 				}
 				else {
 					updateGroup(g);
