@@ -9,9 +9,11 @@ import java.util.LinkedHashSet;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.http.client.URL;
+
 import com.google.gwt.regexp.shared.MatchResult;
 import com.google.gwt.regexp.shared.RegExp;
 import com.google.gwt.regexp.shared.SplitResult;
+
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
@@ -404,7 +406,7 @@ public class ServerLibraryManager implements EntryPoint {
             	if (pressed.equals(KeyNames.ENTER)){
             		// Determine if the tree needs to be updated, set the rot directory
 	            	String newRoot = rootNew.getValueAsString();
-	            	Boolean updateTree = rootDirectory.equals(newRoot) == false;
+	            	boolean updateTree = rootDirectory.equals(newRoot) == false;
 	            	rootDirectory = newRoot;
             		
             		// Update the view
@@ -444,32 +446,209 @@ public class ServerLibraryManager implements EntryPoint {
 	}
 	
 	////////////////////////////////////////////////////////////
-	// Private Functions
+	// Private Function - Calls to Server
 	////////////////////////////////////////////////////////////
 	
-	private void updateGroups(final boolean view){
-	    groups.clear();
-		
-		fileServer.getGroups(
-    		new AsyncCallback<Group[]>() {
+	/**
+	 * Makes the RPC to getFiles
+	 */
+	private void getFiles(){
+		fileServer.getFiles(rootDirectory, new AsyncCallback<Pipefile[]>() {
 		        public void onFailure(Throwable caught) {
-		        	error("Failed to retrieve groups: " + caught.getMessage());
+		        	error("Failed to retrieve files: " + caught.getMessage());
 		        }
 
-		        public void onSuccess(Group[] result) {
-		        	if (result != null){
-			        	for(Group g : result){
-			        		groups.put(g.name, g);
+		        public void onSuccess(Pipefile[] result) {
+		        	if (result != null) {
+		        		
+		        		LinkedHashSet<String> packageNames = new LinkedHashSet<String>();
+		        		for (Pipefile p : result){
+			        		pipes.put(p.absolutePath, p);
+			        		packageNames.add(p.packageName);
 			        	}
+		        		
+		        		packages = new String[packageNames.size()];
+		        		packages = packageNames.toArray(packages);
 		        	}
 		        	
-		        	if (view){
-		        		viewGroups();
-		        	}
+		        	sortFullTree();
 		        }
 		    }
         );
 	}
+	
+	/**
+	 * Makes the RPC to getSearchResults
+	 */
+	private void getSearchResults(String query){
+		fileServer.getSearchResults(rootDirectory, query, new AsyncCallback<Pipefile[]>() {
+	        public void onFailure(Throwable caught) {
+	        	error("Failed to retrieve search results: "+ caught.getMessage());
+	        }
+
+	        public void onSuccess(Pipefile[] result) {
+	        	// Clear the ResultsTree
+	        	resultsTree.removeList(resultsTree.getDescendants());
+	        	
+	        	if (result != null){
+	        		for (Pipefile p : result){
+	        			if (pipes.containsKey(p.absolutePath) == false){
+	        				pipes.put(p.absolutePath, p);
+	        			}
+		        		
+		        		TreeNode pipe = new TreeNode(p.name);
+		        		pipe.setAttribute("absolutePath", p.absolutePath);
+		        		
+		        		resultsTree.add(pipe, resultsTree.getRoot());
+	        		}
+	        	}
+	        }
+	    });
+	}
+	
+	/**
+	 * Makes the RPC to updateFile
+	 */
+	private void updateFile(final Pipefile pipe){
+		fileServer.updateFile(pipe, new AsyncCallback<Void>() {
+        	public void onFailure(Throwable caught) {
+		        error("Failed to update file: " + caught.getMessage());
+		    }
+
+		    public void onSuccess(Void result){
+		    	success("Successfully updated " + pipe.name);
+		    	updateFullTree();
+		    }
+		});
+	}
+	
+	/**
+	 * Makes the RPC to removeFiles
+	 */
+	private void removeFiles(final Pipefile[] selected){
+		fileServer.removeFiles(selected, new AsyncCallback<Void>() {
+        	public void onFailure(Throwable caught) {
+		        error("Failed to remove file(s): " + caught.getMessage());
+		    }
+
+		    public void onSuccess(Void result){
+		    	basicInstructions();
+		    	success("Successfully removed " + selected.length + " file(s).");
+		    	updateFullTree();
+		    }
+		});
+	}
+	
+	/**
+	 * Makes the RPC to copyFiles
+	 */
+	private void copyFiles(final Pipefile[] selected, final String packageName){
+		fileServer.copyFiles(selected, packageName, new AsyncCallback<Void>() {
+        	public void onFailure(Throwable caught) {
+		        error("Failed to copy file(s): " + caught.getMessage());
+		    }
+
+		    public void onSuccess(Void result){
+		    	basicInstructions();
+		    	success("Successfully copied " + selected.length + " file(s) to " + packageName + ".");
+		    	updateFullTree();
+		    }
+		});
+	}
+	
+	/**
+	 * Makes the RPC to moveFiles
+	 */
+	private void moveFiles(final Pipefile[] selected, final String packageName){
+		fileServer.moveFiles(selected, packageName, new AsyncCallback<Void>() {
+			public void onFailure(Throwable caught) {
+		        error("Failed to move file(s): " + caught.getMessage());
+		    }
+
+		    public void onSuccess(Void result){
+		    	basicInstructions();
+		    	success("Successfully moved " + selected.length + " file(s) to " + packageName + ".");
+		    	updateFullTree(); 
+		    }
+		});
+	}
+	
+	/**
+	 * Makes the RPC to getGroups
+	 */
+	private void getGroups(){		
+		fileServer.getGroups(new AsyncCallback<Group[]>() {
+	        public void onFailure(Throwable caught) {
+	        	error("Failed to retrieve groups: " + caught.getMessage());
+	        }
+
+	        public void onSuccess(Group[] result) {
+	        	if (result != null){
+		        	for(Group g : result){
+		        		groups.put(g.name, g);
+		        	}
+	        	}
+	        }
+	    });
+	}
+	
+	/**
+	 * Makes the RPC to updateGroup
+	 */
+	private void updateGroup(final Group group){		
+		fileServer.updateGroup(group, new AsyncCallback<Void>() {
+	        public void onFailure(Throwable caught) {
+	        	error("Failed to update group: " + caught.getMessage());
+	        }
+
+	        public void onSuccess(Void result) {
+	        	updateGroups(true);
+	        	success("Successfully updated " + group.name + ".");
+	        }
+	    });
+	}
+	
+	/**
+	 * Makes the RPC to getGroups
+	 */
+	private void removeGroups(final Group[] groups){		
+		fileServer.removeGroups(groups, new AsyncCallback<Void>(){
+			public void onFailure(Throwable caught) {
+	        	error("Failed to remove groups: "+ caught.getMessage());
+	        }
+
+	        public void onSuccess(Void result) {
+	        	updateGroups(true);
+	        	success("Successfully removed " + groups.length + " file(s).");
+	        }
+		});
+	}
+	
+	/**
+	 * Makes the HTTP request to download
+	 */
+	private void downloadFiles(Pipefile[] selected){
+		int length = selected.length;
+		
+		String url = "download?n=" + length;
+		for(int i = 0; i < length; i++){
+			String filename = selected[i].absolutePath;
+			url += "&filename_" + i + "=" + URL.encode(filename);
+		}
+		
+		Window.open(url, "downloadWindow", "");
+	}
+	
+	/**
+	 * Makes the HTTP request to upload
+	 */
+	private void uploadFiles(){
+		// TODO
+	}
+	
+	////////////////////////////////////////////////////////////
+	// Private Functions - Tree
+	////////////////////////////////////////////////////////////
 	
 	private void sortFullTree(){
 		// Clear the full tree
@@ -533,73 +712,30 @@ public class ServerLibraryManager implements EntryPoint {
 	
 	/**
 	 *  Updates Package Tree and Module Tree based on the rootDirectory
+	 *  Ensure tree is displayed
 	 */
 	private void updateFullTree(){
 		pipes.clear();
 		treeGrid.setData(fullTree);
-		
-	    // Update Trees
-		fileServer.getFiles(
-            rootDirectory, 
-            new AsyncCallback<Pipefile[]>() {
-		        public void onFailure(Throwable caught) {
-		        	error("Failed to retrieve files: " + caught.getMessage());
-		        }
-
-		        public void onSuccess(Pipefile[] result) {
-		        	if (result != null) {
-		        		
-		        		LinkedHashSet<String> packageNames = new LinkedHashSet<String>();
-		        		for (Pipefile p : result){
-			        		pipes.put(p.absolutePath, p);
-			        		packageNames.add(p.packageName);
-			        	}
-		        		
-		        		packages = new String[packageNames.size()];
-		        		packages = packageNames.toArray(packages);
-		        	}
-		        	
-		        	sortFullTree();
-		        }
-		    }
-        );
+		getFiles();
 	}
 	
 	/**
-	 *  Updates ResultsTree based on what query is returned by the server
+	 *  Updates ResultsTree based on the query
+	 *  Ensure results are displayed
 	 */
 	private void updateResultsTree(final String query){
 		treeGrid.setData(resultsTree);
-		
-		fileServer.getSearchResults(
-            rootDirectory,
-            query,
-            new AsyncCallback<Pipefile[]>() {
-		        public void onFailure(Throwable caught) {
-		        	error("Failed to retrieve search results: "+ caught.getMessage());
-		        }
-
-		        public void onSuccess(Pipefile[] result) {
-		        	// Clear the ResultsTree
-		        	resultsTree.removeList(resultsTree.getDescendants());
-		        	
-		        	if (result != null){
-		        		for (Pipefile p : result){
-		        			if (pipes.containsKey(p.absolutePath) == false){
-		        				pipes.put(p.absolutePath, p);
-		        			}
-			        		
-			        		TreeNode pipe = new TreeNode(p.name);
-			        		pipe.setAttribute("absolutePath", p.absolutePath);
-			        		
-			        		resultsTree.add(pipe, resultsTree.getRoot());
-		        		}
-		        	}
-		        }
-		    }
-        );
+		getSearchResults(query);
 	}
 	
+	////////////////////////////////////////////////////////////
+	// Private Functions - Workarea - File Operations
+	////////////////////////////////////////////////////////////
+	
+	/**
+	 *  Adds file operations (download, remove, copy, move) to the workarea 
+	 */
 	private void fileOperationsActions(final Pipefile[] selected){
 		// Title
 		Label workareaTitle = new Label("File Operations");
@@ -622,63 +758,27 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		remove.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				fileServer.removeFiles(selected, new AsyncCallback<Void>() {
-		        	public void onFailure(Throwable caught) {
-				        error("Failed to remove file(s): " + caught.getMessage());
-				    }
-		
-				    public void onSuccess(Void result){
-				    	basicInstructions();
-				    	updateFullTree();
-				    }
-				});
+				removeFiles(selected);
 			}
 		});
 		
 		download.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				int length = selected.length;
-				
-				String url = "download?n=" + length;
-				for(int i = 0; i < length; i++){
-					String filename = selected[i].absolutePath;
-					url += "&filename_" + i + "=" + URL.encode(filename);
-				}
-				
-				Window.open(url, "downloadWindow", "");
+				downloadFiles(selected);
 			}
 		});
 		
 		copy.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				fileServer.copyFiles(selected, combo.getDisplayValue(), new AsyncCallback<Void>() {
-		        	public void onFailure(Throwable caught) {
-				        error("Failed to copy file(s): " + caught.getMessage());
-				    }
-		
-				    public void onSuccess(Void result){
-				    	basicInstructions();
-				    	updateFullTree();
-				    }
-				});
+				copyFiles(selected, combo.getDisplayValue());
 			}
 		});
 		
 		move.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				fileServer.moveFiles(selected, combo.getDisplayValue(), new AsyncCallback<Void>() {
-					public void onFailure(Throwable caught) {
-				        error("Failed to move file(s): " + caught.getMessage());
-				    }
-		
-				    public void onSuccess(Void result){
-				    	basicInstructions();
-				    	updateFullTree(); 
-				    }
-				});
+				moveFiles(selected, combo.getDisplayValue());
 			}
 		});
-		
 		
 		HLayout copyMoveButtons = new HLayout(10);
 		copyMoveButtons.setAlign(Alignment.CENTER);
@@ -717,6 +817,9 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(actions);
 	}
 	
+	/**
+	 *  Adds a list of the selected files to the workarea
+	 */
 	private void fileOperationsSelectedFiles(final Pipefile[] selected){
 		// Title
 		Label selectedTitle = new Label("Selected Files");
@@ -750,6 +853,10 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(grid);
 	}
 	
+	/**
+	 *  Sets workarea to file Operations (download, remove, copy, move)
+	 *    and a list of the selected files
+	 */
 	private void fileOperations(final Pipefile[] selected){
 		clearWorkarea();
 		
@@ -757,6 +864,13 @@ public class ServerLibraryManager implements EntryPoint {
 		fileOperationsSelectedFiles(selected);
 	}
 	
+	////////////////////////////////////////////////////////////
+	// Private Functions - Workarea - View File
+	////////////////////////////////////////////////////////////
+	
+	/**
+	 *  Updates the accessInfo to tell the user about groups
+	 */
 	private void updateAccessInfo(TextAreaItem access, StaticTextItem accessInfo){
 		String info = 
 				"Enter a comma seperated list of users and groups (syntax = g:groupName).<br/>" +
@@ -786,11 +900,7 @@ public class ServerLibraryManager implements EntryPoint {
 	}
 	
 	/**
-	 *  Updates the workarea with information about the file and
-	 *  buttons to edit it, copy it to another package, move it to another
-	 *  package, and to remove it
-	 *  <p>
-	 *  @param pipe Pipefile 
+	 *  Sets the workarea with file operations and a form to edit
 	 */
 	private void viewFile(final Pipefile pipe){		
 		clearWorkarea();
@@ -920,8 +1030,6 @@ public class ServerLibraryManager implements EntryPoint {
 		Button update = new Button("Update");
 		update.addClickHandler( new ClickHandler() {
 			public void onClick(ClickEvent event) {
-		    	// TODO
-				// Update pipefile
 				RegExp re = RegExp.compile("(.*://.*/)(.*)");
 				pipe.name = form.getValueAsString("name");
 				pipe.packageName = form.getValueAsString("package");
@@ -948,15 +1056,9 @@ public class ServerLibraryManager implements EntryPoint {
 				}
 				if(pipe.type.equals("Modules") || pipe.type.equals("Groups"))
 					pipe.uri = form.getValueAsString("uri");
-				fileServer.updateFile(pipe, new AsyncCallback<Void>() {
-		        	public void onFailure(Throwable caught) {
-				        error("Failed to edit file: " + caught.getMessage());
-				    }
-		
-				    public void onSuccess(Void result){
-				    	viewFile(pipe);
-				    }
-				});
+				
+				
+				updateFile(pipe);
 		    }
 		});
 		
@@ -964,8 +1066,24 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(update);
 	}
 	
+	////////////////////////////////////////////////////////////
+	// Private Functions - Workarea - Groups
+	////////////////////////////////////////////////////////////
+	
 	/**
-	 *  Updates workarea with a list of the groups 
+	 *  Refreshes the groups 
+	 */
+	private void updateGroups(boolean view){
+		groups.clear();
+		getGroups();
+		
+		if (view){
+			viewGroups();
+		}
+	}
+	
+	/**
+	 *  Sets workarea to a list of the groups 
 	 */
 	private void viewGroups(){
 		clearWorkarea();
@@ -1050,15 +1168,7 @@ public class ServerLibraryManager implements EntryPoint {
 						toRemove[i++] = groups.get(name);
 					}
 					
-					fileServer.removeGroups(toRemove, new AsyncCallback<Void>(){
-						public void onFailure(Throwable caught) {
-				        	error("Failed to remove groups: "+ caught.getMessage());
-				        }
-
-				        public void onSuccess(Void result) {
-				        	updateGroups(true);
-				        }
-					});
+					removeGroups(toRemove);
 				}
 			}
 		});
@@ -1088,8 +1198,7 @@ public class ServerLibraryManager implements EntryPoint {
 	}
 
 	/**
-	 *  Updates workarea with a form to edit a group 
-	 *  @param groupIndex is an index into the currentGroups
+	 *  Sets workarea to a form to edit a group 
 	 */
 	private void editGroup(final Group g){
 		clearWorkarea();
@@ -1122,19 +1231,17 @@ public class ServerLibraryManager implements EntryPoint {
 				g.name = name.getValueAsString();
 				g.users = users.getValueAsString();
 				
-				if (newGroup && groups.containsKey(g.name)){
+				if (g.name == null || g.name.equals("")){
+					SC.say("Name cannot be blank"); 
+				}
+				else if (g.users == null || g.users.equals("")){
+					SC.say("Users cannot be blank"); 
+				}
+				else if (newGroup && groups.containsKey(g.name)){
 					SC.say("Name (" + g.name + ") is already in use. Please choose another name."); 
-				} 
+				}
 				else {
-					fileServer.updateGroup(g, new AsyncCallback<Void>(){
-						public void onFailure(Throwable caught) {
-				        	error("Failed to update group: "+ caught.getMessage());
-				        }
-
-				        public void onSuccess(Void result) {
-				        	updateGroups(true);
-				        }
-					});
+					updateGroup(g);
 				}
 			}
 		});
@@ -1143,11 +1250,15 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		workarea.addMember(title);
 		workarea.addMember(form);
-		workarea.addMember(update);		
+		workarea.addMember(update);
 	}
 	
+	////////////////////////////////////////////////////////////
+	// Private Functions - Workarea - Import
+	////////////////////////////////////////////////////////////
+	
 	/**
-	 *  Updates the workarea with an import form
+	 *  Sets workarea to an import form
 	 */
 	private void importForm(){
 		// TODO
@@ -1159,8 +1270,12 @@ public class ServerLibraryManager implements EntryPoint {
 		//   On click, import the files, go back to basic instructions
 	}
 	
+	////////////////////////////////////////////////////////////
+	// Private Functions - Workarea - Home
+	////////////////////////////////////////////////////////////
+	
 	/**
-	 *  Updates workarea with the basic instructions
+	 *  Sets workarea to the basic instructions
 	 */
 	private void basicInstructions(){
 		clearWorkarea();
@@ -1201,15 +1316,32 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(files);
 	}
 	
+	////////////////////////////////////////////////////////////
+	// Private Functions - Workarea - Messages
+	////////////////////////////////////////////////////////////
+	
+	/**
+	 *  Prints an error message to the top of workarea
+	 */
+	private void error(String message){
+		SC.say(message);
+	}
+	
+	/**
+	 *  Prints a success message to the top of workarea
+	 */
+	private void success(String message){
+		// TODO
+	}
+	
+	////////////////////////////////////////////////////////////
+	// Private Functions - Workarea - Clear
+	////////////////////////////////////////////////////////////
+	
 	/**
 	 *  Clears the workarea
 	 */
 	private void clearWorkarea(){
 		workarea.removeMembers(workarea.getMembers());
-	}
-	
-	private void error(String message){
-		clearWorkarea();
-		workarea.addMember(new Label("Error: " + message));
 	}
 }

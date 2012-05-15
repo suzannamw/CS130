@@ -146,6 +146,23 @@ public class Database {
 		return resultSetToPipefileArray(rs);
 	}
 	
+	public static int selectPipefileId(String absolutePath) throws Exception {
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+	    	"SELECT fileId " +
+			"FROM pipefiles " +
+			"WHERE absolutePath = ? "
+		);
+	    stmt.setString(1, absolutePath);
+		ResultSet rs = stmt.executeQuery();
+		
+		if (rs.next()){
+			return rs.getInt(1);
+		} else {
+			return -1;
+		}
+	}
+	
 	public static Timestamp selectPipefileLastModified(String absolutePath) throws Exception {
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(

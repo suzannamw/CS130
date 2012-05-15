@@ -87,17 +87,18 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		    
 			// Determine if the row needs to be updated or inserted
 		    boolean update = false;
-		    boolean insert = true;
+		    boolean insert = false;
 		    
 		    Timestamp fs_lastModified = new Timestamp(file.lastModified());
 			
-		    if (db_lastModified != null){
-				insert = false;
-				
+		    if (db_lastModified != null){				
 				// If file has been modified
 				if (db_lastModified.equals(fs_lastModified) == false){
 					update = true;
 				}
+			} 
+		    else {
+				insert = true;
 			}
 			
 			// If we need to update or insert a row
@@ -107,6 +108,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				if (insert){
 					Database.insertPipefile(dirId, pipe, fs_lastModified);
 				} else {
+					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
 					Database.updatePipefile(pipe, fs_lastModified);
 				}
  		    }
