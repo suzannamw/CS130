@@ -11,6 +11,7 @@ import com.google.gwt.core.client.GWT;
 import com.google.gwt.http.client.URL;
 import com.google.gwt.regexp.shared.MatchResult;
 import com.google.gwt.regexp.shared.RegExp;
+import com.google.gwt.regexp.shared.SplitResult;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
@@ -804,7 +805,7 @@ public class ServerLibraryManager implements EntryPoint {
 		workarea.addMember(editFileTitle);
 		
 		// Edit File
-		DynamicForm form = new DynamicForm();
+		final DynamicForm form = new DynamicForm();
 		form.setCanEdit(true);
         form.setPadding(10);
         form.setWidth(800);
@@ -878,7 +879,18 @@ public class ServerLibraryManager implements EntryPoint {
 		updateAccessInfo(access, accessInfo);
 		
 		if(pipe.type.equals("Data")){
-			form.setValue("values", pipe.values);
+			//TODO: fix this stuff!!!!
+			String valString = "";
+			RegExp split = RegExp.compile("\n", "m");
+			SplitResult vals = split.split(pipe.values);
+			RegExp re = RegExp.compile(".*://.*/(.*)");
+			for (int j = 0; j<vals.length(); j++){
+				MatchResult m = re.exec(vals.get(j));
+				if(m!= null){
+					valString += m.getGroup(1) + "\n";
+				}
+			}
+			form.setValue("values", valString);
 			form.setValue("formatType", pipe.formatType);
 		}
 		else{
@@ -886,11 +898,14 @@ public class ServerLibraryManager implements EntryPoint {
 			form.hideItem("formatType");
 		}
 		
-		if(pipe.type.equals("Modules")){
-			String loc;
-			RegExp re = RegExp.compile(".*://.*/(.*)");
-			MatchResult m = re.exec(pipe.location);
+		final String loc;
+		RegExp re = RegExp.compile(".*://.*/(.*)");
+		MatchResult m = re.exec(pipe.location);
+		if(m!= null)
 			loc = m.getGroup(1); 
+		else
+			loc = "";
+		if(pipe.type.equals("Modules")){
 			form.setValue("location", loc);
 		}
 		else
@@ -907,7 +922,41 @@ public class ServerLibraryManager implements EntryPoint {
 			public void onClick(ClickEvent event) {
 		    	// TODO
 				// Update pipefile
-				// Call fileServer.update
+				RegExp re = RegExp.compile("(.*://.*/)(.*)");
+				pipe.name = form.getValueAsString("name");
+				pipe.packageName = form.getValueAsString("package");
+				pipe.type = form.getValueAsString("type");
+				pipe.description = form.getValueAsString("description");
+				pipe.tags = form.getValueAsString("tags");
+				pipe.access = form.getValueAsString("access");
+				if(pipe.type.equals("Data")){
+					String valString = "";
+					RegExp split = RegExp.compile("\n", "m");
+					SplitResult vals = split.split(form.getValueAsString("values"));
+					MatchResult m = re.exec(pipe.values);
+					if(m !=null)
+						for (int j = 0; j<vals.length(); j++){
+							if(vals.get(j).length()==0)
+								continue;
+							valString += m.getGroup(1) + vals.get(j) +  "\n";
+						}
+					pipe.values = valString;
+					pipe.formatType = form.getValueAsString("formatType");
+				}
+				if(pipe.type.equals("Modules")){
+					pipe.location = loc + form.getValueAsString("location");
+				}
+				if(pipe.type.equals("Modules") || pipe.type.equals("Groups"))
+					pipe.uri = form.getValueAsString("uri");
+				fileServer.updateFile(pipe, new AsyncCallback<Void>() {
+		        	public void onFailure(Throwable caught) {
+				        error("Failed to edit file: " + caught.getMessage());
+				    }
+		
+				    public void onSuccess(Void result){
+				    	viewFile(pipe);
+				    }
+				});
 		    }
 		});
 		
