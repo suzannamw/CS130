@@ -1,6 +1,10 @@
 package edu.ucla.loni.server;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 import java.sql.Timestamp;
 
@@ -9,7 +13,6 @@ import java.util.ArrayList;
 import edu.ucla.loni.client.FileService;
 import edu.ucla.loni.shared.*;
 
-import com.google.gwt.thirdparty.guava.common.io.Files;
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 
 import org.jdom2.Document;
@@ -161,7 +164,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		}
 		
 		// Copy the file
-		Files.copy(src, dest);	
+		Path srcPath = Paths.get(oldAbsolutePath);
+		Path destPath = Paths.get(newAbsolutePath);
+		Files.copy(srcPath, destPath, StandardCopyOption.REPLACE_EXISTING);	
 
 		// Update Pipefile
 		Pipefile newPipe = pipe;
