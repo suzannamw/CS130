@@ -1,0 +1,27 @@
+<access>
+  <files>
+    <file relativePath="\AAL\DATA\AAL_Atlas.pipe">
+      <agent group="false">user1</agent>
+      <agent group="true">group1</agent>
+      <agent group="false">user2</agent>
+    </file>
+
+    <file relativePath="\AAL\DATA\AAL_Reference.pipe">
+      <agent group="false">user1</agent>
+      <agent group="true">group2</agent>
+    </file>
+  </files>
+  
+  <groups>
+    <group name="group1">
+      <agent group="false">user3</agent>
+      <agent group="true">group2</agent>
+      <agent group="false">user4</agent>
+    </group>
+
+    <group name="group2">
+      <agent group="false">user5</agent>
+      <agent group="false">user6</agent>
+    </group>
+  </groups>
+</access>

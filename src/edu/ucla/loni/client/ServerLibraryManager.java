@@ -663,7 +663,7 @@ public class ServerLibraryManager implements EntryPoint {
 	private void downloadFiles(Pipefile[] selected){
 		int length = selected.length;
 		
-		String url = "download?n=" + length;
+		String url = "serverlibrarymanager/download?n=" + length;
 		for(int i = 0; i < length; i++){
 			String filename = selected[i].absolutePath;
 			url += "&filename_" + i + "=" + URL.encode(filename);

@@ -1,0 +1,48 @@
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:complexType name="access">
+    <xsd:sequence>
+      <xsd:element name="files" type="files"/>
+      <xsd:element name="groups" type="groups"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  
+  <xsd:complexType name="files">
+    <xsd:choice>
+      <xsd:element name="file" type="file" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:choice>
+  </xsd:complexType>
+  
+  <xsd:complexType name="groups">
+    <xsd:choice>
+      <xsd:element name="group" type="group" minOccurs="0" maxOccurs="unbounded"/>
+    </xsd:choice>
+  </xsd:complexType>
+  
+  <xsd:complexType name="file">
+    <xsd:all>
+      <xsd:element name="agents" type="agents"/>  
+    </xsd:all>
+    <xsd:attribute name="relativePath" type="xsd:string"/>
+  </xsd:complexType>
+  
+  <xsd:complexType name="group">
+    <xsd:all>
+      <xsd:element name="agents" type="agents"/>
+    </xsd:all>
+    <xsd:attribute name="name" type="xsd:string"/>
+  </xsd:complexType>
+
+  <xsd:complexType name="agents">
+    <xsd:choice>
+      <xsd:element name="agent" type="agent" minOccurs="1" maxOccurs="unbounded"/>
+    </xsd:choice>
+  </xsd:complexType>
+
+  <xsd:complexType name="agent">
+    <xsd:simpleContent>
+      <xsd:extension base="xsd:string">
+        <xsd:attribute name="group" type="xsd:boolean" />
+      </xsd:extension>
+    </xsd:simpleContent>
+  </xsd:complexType>
+</xsd:schema>
