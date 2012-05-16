@@ -56,7 +56,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Remove files from the database in the case that they were deleted
 	 */
-	private void removeFiles(int dirId) throws Exception{
+	private void cleanDatabase(int dirId) throws Exception{
 		Pipefile[] pipes = Database.selectPipefiles(dirId);
 		if (pipes != null){
 			for(Pipefile pipe : pipes){
@@ -72,10 +72,10 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Update the database for this root folder 
 	 *  @param root absolute path of the root directory
 	 */
-	private void updateFiles(File rootDir) throws Exception {		
+	private void updateDatabase(File rootDir) throws Exception {		
 		// Clean the database
 		int dirId = getDirectoryId(rootDir.getAbsolutePath());	
-		removeFiles(dirId);
+		cleanDatabase(dirId);
 		
 		// Update all files
 		ArrayList<File> files = getAllPipefiles(new ArrayList<File>(), rootDir);
@@ -121,14 +121,17 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	private void removeFile(String root, Pipefile pipe) throws Exception {		
 		File f = new File(pipe.absolutePath);
 		if (f.exists()){
-			f.delete(); // TODO: check return status
+			// Delete file on file-system
+			boolean success = f.delete();
+			if (success == false){
+				throw new Exception("Failed to remove file " + pipe.absolutePath);
+			}
 			
-			Database.deletePipefile(pipe);
-			
-			// remove parent if this directory is empty
+			// Remove parent directory if it is empty
 			ServerUtils.recursiveRemoveDir(f.getParentFile());
 			
-			//TODO: update access restrictions file
+			// Delete file from database
+			Database.deletePipefile(pipe);
 		}
 	}
 	
@@ -208,6 +211,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			throw new Exception("File could not be moved");
 		}
 		
+		// Remove parent directory if it is empty
+		ServerUtils.recursiveRemoveDir(src.getParentFile());
+		
 		// Update Pipefile
 		pipe.packageName = packageName;
 		pipe.absolutePath = newAbsolutePath;
@@ -220,9 +226,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		// Update Database
 		Timestamp modified = new Timestamp(dest.lastModified());
 		Database.updatePipefile(pipe, modified);
-		
-		// Recursive delete of parent (if necessary)
-		ServerUtils.recursiveRemoveDir(src.getParentFile());
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -239,7 +242,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		try {
 			File rootDir = new File(root);
 			if (rootDir.exists() && rootDir.isDirectory()){
-				updateFiles(rootDir);
+				updateDatabase(rootDir);
 				
 				int dirId = getDirectoryId(root);
 				
@@ -286,8 +289,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			ServerUtils.writeXML(file, doc);
 			
 			// TODO if packageChanged, move file
-			// TODO update the database
-			// TODO rewrite access file
+			
+			// Update the database
+			Timestamp modified = new Timestamp(file.lastModified());
+			Database.updatePipefile(pipe, modified);
+			
+			// Write the access file
+			ServerUtils.writeAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -303,10 +311,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public void removeFiles(String root, Pipefile[] pipes) throws Exception {
 		try {
+			// Remove each file
 			for (Pipefile pipe : pipes) {
 				removeFile(root, pipe);
 			}
-			// TODO rewrite access file	
+			
+			// Write the access file
+			ServerUtils.writeAccessFile(root);	
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -321,10 +332,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public void copyFiles(String root, Pipefile[] pipes, String packageName) throws Exception {		
 		try {
+			// Copy each file
 			for (Pipefile pipe : pipes) {
 				copyFile(root, pipe, packageName);
 			}
-			// TODO rewrite access file	
+
+			// Write the access file
+			ServerUtils.writeAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -340,10 +354,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public void moveFiles(String root, Pipefile[] pipes, String packageName) throws Exception{
 		try {
+			// Move each file
 			for (Pipefile pipe : pipes) {
 				moveFile(root, pipe, packageName);
 			}
-			// TODO rewrite access file	
+			
+			// Write the access file
+			ServerUtils.writeAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -370,11 +387,15 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public void	updateGroup(String root, Group group) throws Exception{
 		try {
+			// Insert or update the group
 			if (group.groupId == -1){
 				Database.insertGroup(group);
 			} else {
 				Database.updateGroup(group);
 			}
+			
+			// Write the access file
+			ServerUtils.writeAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -388,9 +409,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public void	removeGroups(String root, Group[] groups) throws Exception{
 		try {
+			// Delete each group
 			for (Group group: groups){
 				Database.deleteGroup(group);
 			}
+			
+			// Write the access file
+			ServerUtils.writeAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
