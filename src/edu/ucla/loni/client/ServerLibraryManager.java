@@ -901,8 +901,14 @@ public class ServerLibraryManager implements EntryPoint {
 	////////////////////////////////////////////////////////////
 	
 	private String loopFound = "<b>LOOP IN GROUP DEPENDENCIES</b>";
+	private String groupStart = "g:";
+	private String groupEnd = "";
 	
-	private String expandGroups(String originalGroup, String list, String base){
+	private String groupHint = "Comma separated list<br/>" +
+			"Group syntax = " + groupStart + "groupName" + groupEnd +
+			"<br/>Groups expanded below";
+	
+	private String expandGroupsRecursive(String originalGroup, String list, String base){
 		String ret = "";
 		
 		String[] agents = list.split(",");
@@ -910,19 +916,21 @@ public class ServerLibraryManager implements EntryPoint {
 		for(String agent : agents){
 			agent = agent.trim();
 			
-			if (agent.startsWith("g:")){
-				String groupName = agent.substring(2);
+			if (agent.startsWith(groupStart) && agent.endsWith(groupEnd)){
+				String groupName = agent.substring(groupStart.length(), agent.length() - groupEnd.length());
 				
-				if (groups.containsKey(groupName)){
+				if (groupName.equals(originalGroup)){
+					ret += base + loopFound;
+					return ret;
+				}
+				else if (groups.containsKey(groupName)){
 					Group g = groups.get(groupName);
-					if (g.name.equals(originalGroup)){
-						ret += base + loopFound;
-						return ret;
-					}
-					ret += base + agent + " = " + g.users + "<br/>";
-					ret += expandGroups(originalGroup, g.users, base + "&nbsp;&nbsp;&nbsp;&nbsp;");
-				} else {
-					ret += base + agent + " is undefined" + "<br/>";;
+					
+					ret += base + groupStart + groupName + groupEnd + " = " + g.users + "<br/>";
+					ret += expandGroupsRecursive(originalGroup, g.users, base + "&nbsp;&nbsp;&nbsp;&nbsp;");
+				} 
+				else {
+					ret += base + groupStart + groupName + groupEnd + " is undefined" + "<br/>";;
 				}
 			}
 		}
@@ -931,10 +939,10 @@ public class ServerLibraryManager implements EntryPoint {
 	}
 	
 	/**
-	 *  Updates the accessInfo to tell the user about groups
+	 *  Updates a static text item with the groups expanded
 	 */
-	private boolean updateAccessInfo(String groupName, String accessList, StaticTextItem info){
-		String msg = expandGroups(groupName, accessList, "");
+	private boolean expandGroups(String groupName, String agentList, StaticTextItem info){
+		String msg = expandGroupsRecursive(groupName, agentList, "");
 		
 		info.setValue(msg);
 		
@@ -1016,14 +1024,14 @@ public class ServerLibraryManager implements EntryPoint {
 		access.setName("access");
 		access.setWidth(width);
 		access.setHeight(50);
-		access.setHint("Comma separated list<br/>Group syntax = g:groupName<br/>Groups expanded below");
+		access.setHint(groupHint);
 		
 		final StaticTextItem accessInfo = new StaticTextItem();
-		accessInfo.setTitle("Access Info");
+		accessInfo.setTitle("Access Groups Expanded");
 		
 		access.addChangedHandler(new ChangedHandler(){
 			public void onChanged(ChangedEvent event){
-				updateAccessInfo("", access.getValueAsString(), accessInfo);
+				expandGroups("", access.getValueAsString(), accessInfo);
 			}
 		});
 		
@@ -1034,7 +1042,7 @@ public class ServerLibraryManager implements EntryPoint {
 		form.setValue("description", pipe.description);
 		form.setValue("tags",pipe.tags);
 		form.setValue("access", pipe.access);
-		updateAccessInfo("", access.getValueAsString(), accessInfo);
+		expandGroups("", access.getValueAsString(), accessInfo);
 		
 		if(pipe.type.equals("Data")){
 			//TODO: fix this stuff!!!!
@@ -1256,29 +1264,29 @@ public class ServerLibraryManager implements EntryPoint {
 		agents.setValue(g.users);
 		agents.setWidth(width);
 		agents.setHeight(50);
-		agents.setHint("Comma separated list<br/>Group syntax = g:groupName<br/>Groups expanded below");
+		agents.setHint(groupHint);
 		
 		final StaticTextItem agentsInfo = new StaticTextItem();
-		agentsInfo.setTitle("Access Info");
+		agentsInfo.setTitle("Agent Groups Expanded");
 		
 		
 		agents.addChangedHandler(new ChangedHandler(){
 			public void onChanged(ChangedEvent event){
-				updateAccessInfo(g.name, agents.getValueAsString(), agentsInfo);
+				expandGroups(name.getValueAsString(), agents.getValueAsString(), agentsInfo);
 			}
 		});
 		
 		DynamicForm form = new DynamicForm();
 		form.setFields(name, agents, agentsInfo);
 		form.setPadding(10);
-		updateAccessInfo(g.name, agents.getValueAsString(), agentsInfo);
+		expandGroups(name.getValueAsString(), agents.getValueAsString(), agentsInfo);
 		
 		Button update = new Button("Update");
 		update.addClickHandler(new ClickHandler(){
 			public void onClick(ClickEvent event){				
 				g.name = name.getValueAsString();
 				g.users = agents.getValueAsString();
-				boolean loop = updateAccessInfo(g.name, g.users, agentsInfo);
+				boolean loop = expandGroups(g.name, g.users, agentsInfo);
 				
 				if (g.name == null || g.name.equals("")){
 					SC.say("Name cannot be blank"); 
