@@ -77,7 +77,7 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   Default Root Directory
 	 */
-	private String rootDirectoryDefault = "C:\\Users\\charlie\\Desktop\\Test";
+	private String rootDirectoryDefault = "/usr/share/tomcat6/CraniumLibrary";
 	
 	/**
 	 *   Current Root Directory

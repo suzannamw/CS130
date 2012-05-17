@@ -15,7 +15,7 @@ public class Database {
 	// Private Variables
 	////////////////////////////////////////////////////////////
 	private static Connection db_connection;
-	private static String db_name = "jdbc:hsqldb:hsql://localhost/xdb";
+	private static String db_name = "jdbc:hsqldb:hsql://localhost:9002/xdb1";
 	private static String db_username = "SA";
 	private static String db_password = "";
 	
