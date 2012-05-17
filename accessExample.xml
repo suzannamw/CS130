@@ -1,15 +1,19 @@
 <access>
   <files>
-    <file relativePath="\AAL\DATA\AAL_Atlas.pipe">
-      <agent group="false">user1</agent>
-      <agent group="true">group1</agent>
-      <agent group="false">user2</agent>
-    </file>
-
-    <file relativePath="\AAL\DATA\AAL_Reference.pipe">
+  	<dataModule name="AAL Atlas ROIs" package="AAL">
       <agent group="false">user1</agent>
       <agent group="true">group2</agent>
-    </file>
+    </dataModule>
+  
+    <module name="Chaos" package="EMBOSS">
+      <agent group="false">user1</agent>
+    </module>
+    
+    <moduleGroup name="BATWING" package="Bioinformatics">
+      <agent group="true">group1</agent>
+      <agent group="true">group2</agent>
+      <agent group="false">user2</agent>
+    </moduleGroup>
   </files>
   
   <groups>

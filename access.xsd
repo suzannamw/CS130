@@ -1,4 +1,5 @@
 <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <!-- Root element -->
   <xsd:complexType name="access">
     <xsd:sequence>
       <xsd:element name="files" type="files"/>
@@ -6,9 +7,12 @@
     </xsd:sequence>
   </xsd:complexType>
   
+  <!-- Primary elements -->
   <xsd:complexType name="files">
     <xsd:choice>
-      <xsd:element name="file" type="file" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="module" type="module" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="dataModule" type="dataModule" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="moduleGroup" type="moduleGroup" minOccurs="0" maxOccurs="unbounded"/>
     </xsd:choice>
   </xsd:complexType>
   
@@ -18,13 +22,32 @@
     </xsd:choice>
   </xsd:complexType>
   
-  <xsd:complexType name="file">
+  <!-- Files children -->
+  <xsd:complexType name="module">
     <xsd:all>
       <xsd:element name="agents" type="agents"/>  
     </xsd:all>
-    <xsd:attribute name="relativePath" type="xsd:string"/>
+    <xsd:attribute name="name" type="xsd:string"/>
+    <xsd:attribute name="package" type="xsd:string"/>
   </xsd:complexType>
   
+  <xsd:complexType name="dataModule">
+    <xsd:all>
+      <xsd:element name="agents" type="agents"/>  
+    </xsd:all>
+    <xsd:attribute name="name" type="xsd:string"/>
+    <xsd:attribute name="package" type="xsd:string"/>
+  </xsd:complexType>
+  
+  <xsd:complexType name="moduleGroup">
+    <xsd:all>
+      <xsd:element name="agents" type="agents"/>  
+    </xsd:all>
+    <xsd:attribute name="name" type="xsd:string"/>
+    <xsd:attribute name="package" type="xsd:string"/>
+  </xsd:complexType>
+  
+  <!-- Groups children -->
   <xsd:complexType name="group">
     <xsd:all>
       <xsd:element name="agents" type="agents"/>
@@ -32,6 +55,7 @@
     <xsd:attribute name="name" type="xsd:string"/>
   </xsd:complexType>
 
+  <!-- Agents -->
   <xsd:complexType name="agents">
     <xsd:choice>
       <xsd:element name="agent" type="agent" minOccurs="1" maxOccurs="unbounded"/>
