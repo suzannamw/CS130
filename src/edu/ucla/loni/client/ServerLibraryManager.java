@@ -2,6 +2,7 @@ package edu.ucla.loni.client;
 
 import edu.ucla.loni.shared.*;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -21,7 +22,6 @@ import com.smartgwt.client.data.Record;
 import com.smartgwt.client.types.Alignment;
 import com.smartgwt.client.types.KeyNames;
 import com.smartgwt.client.types.SelectionAppearance;
-import com.smartgwt.client.types.SelectionType;
 import com.smartgwt.client.types.VerticalAlignment;
 import com.smartgwt.client.util.SC;
 
@@ -52,6 +52,7 @@ import com.smartgwt.client.widgets.layout.HLayout;
 import com.smartgwt.client.widgets.layout.VLayout;
 import com.smartgwt.client.widgets.menu.Menu;
 import com.smartgwt.client.widgets.menu.MenuItem;
+import com.smartgwt.client.widgets.menu.MenuItemSeparator;
 import com.smartgwt.client.widgets.menu.events.MenuItemClickEvent;
 import com.smartgwt.client.widgets.toolbar.ToolStrip;
 import com.smartgwt.client.widgets.toolbar.ToolStripButton;
@@ -92,6 +93,23 @@ public class ServerLibraryManager implements EntryPoint {
 	private final VLayout workarea = new VLayout();
 	
 	/**
+	 *   Last pipefile that was viewed
+	 */
+	private Pipefile lastPipefile = null;
+	
+	/**
+	 *   Button that allows you to jump back to the last pipefile you viewed
+	 */
+	private final ToolStripButton backToLastPipefile = new ToolStripButton();
+	
+	/**
+	 *   Message
+	 *   <p>
+	 *   Updated with the last message
+	 */
+	private final Label message = new Label();
+	
+	/**
 	 *   Package Tree
 	 *   <p>
 	 *   Set in: treeRefresh
@@ -110,14 +128,22 @@ public class ServerLibraryManager implements EntryPoint {
 	private final Tree resultsTree = new Tree();
 	
 	/**
-	 *   Results Tree
+	 *   Tree Grid
 	 *   <p>
-	 *   Set in: treeResults
+	 *   Set in: onModuleLoad
 	 *   <br>
-	 *   Used in: onModuleLoad
+	 *   Used in: selectionClickHandler, contextClickHandler, updateFullTree, updateResultsTree
 	 */
 	private final TreeGrid treeGrid = new TreeGrid();
 	
+	/**
+	 *   True if packages is the highest level folder in fullTree, 
+	 *   False if module type is the highest level folder in fullTree
+	 *   <p>
+	 *   Set in: onModuleLoad
+	 *   <br>
+	 *   Used in: selectionClickHandler, contextClickHandler, updateFullTree, updateResultsTree
+	 */
 	private boolean viewByPackage = true;
 
 	/**
@@ -130,18 +156,14 @@ public class ServerLibraryManager implements EntryPoint {
 	private final LinkedHashMap<String, Pipefile> pipes = new LinkedHashMap<String, Pipefile>();
 	
 	/**
-	 *   Set in: treeRefresh 
-	 *   <br>
-	 *   Used in: fileOperations
+	 *  String key => TreeNode node, 
+	 *  each tree node is given a key which is either the path from the root to that node (used for folders)
+	 *  <p>
+	 *  Set in: treeRefresh
+	 *  <br>
+	 *  Used in: viewFile, editFile
 	 */
-	private Pipefile[] selectedPipes;
-	
-	/**
-	 *   Set in: treeRefresh 
-	 *   <br>
-	 *   Used in: fileOperations
-	 */
-	private String[] packages;
+	private final LinkedHashMap<String, TreeNode> nodes = new LinkedHashMap<String, TreeNode>();
 	
 	/**
 	 *   String groupName => Group g
@@ -153,93 +175,158 @@ public class ServerLibraryManager implements EntryPoint {
 	private final LinkedHashMap<String, Group> groups = new LinkedHashMap<String, Group>();
 	
 	/**
-	 *   NodeClickHandler for when a pipefile is selected within a tree
+	 *   Pipefiles that are currently selected
+	 *   <p>
+	 *   Set in: selectionClickHandler
+	 *   <br>
+	 *   Used in: fileOperations
 	 */
-	private SelectionUpdatedHandler selectedPipefilesHandler = new SelectionUpdatedHandler() {
-		public void onSelectionUpdated(SelectionUpdatedEvent event){			
-			ListGridRecord[] selected = treeGrid.getSelectedRecords();
-			int numSelected = selected.length;
-			
-			if (numSelected == 0){
-				basicInstructions();
+	private Pipefile[] selected = null;
+	
+	/**
+	 *  Pipefiles that have been selected to be copied
+	 *  <p>
+	 *  Set in: contextClickHandler
+	 *  <br>
+	 *  Used in: contextClickHandler (a later event)
+	 */
+	private Pipefile[] toCopy = null;
+	
+	/**
+	 *  Pipefiles that have been selected to be moved
+	 *  <p>
+	 *  Set in: contextClickHandler
+	 *  <br>
+	 *  Used in: contextClickHandler (a later event)
+	 */
+	private Pipefile[] toMove = null;
+	
+	/**
+	 *   Set in: treeRefresh 
+	 *   <br>
+	 *   Used in: fileOperations
+	 */
+	private String[] packages = null;
+	
+	/**
+	 * Returns all pipefiles related with the given record, 
+	 * Gets the pipefiles from the  
+	 */
+	private ArrayList<Pipefile> getPipefiles(ListGridRecord[] records, Tree t){
+		ArrayList<Pipefile> ret = new ArrayList<Pipefile>();
+		
+		for (ListGridRecord r : records){
+			String absPath = r.getAttribute("absolutePath");
+			if (absPath != null && !absPath.equals("")){
+				Pipefile p = pipes.get(absPath);
+				ret.add(p);
 			}
 			else {
-				selectedPipes = new Pipefile[selected.length];
-				for (int i = 0; i < selected.length; i++){
-					String absolutePath = selected[i].getAttribute("absolutePath");
-					selectedPipes[i] = pipes.get(absolutePath);
-				}
-				
-				if (numSelected == 1){
-					String absolutePath = selected[0].getAttribute("absolutePath");
-					Pipefile pipe = pipes.get(absolutePath);
-					viewFile(pipe);
-				} else {
-					fileOperations(selectedPipes);
-				}
+				String key = r.getAttribute("key");
+				TreeNode node = nodes.get(key);
+				TreeNode[] children = t.getChildren(node);
+				ret.addAll(getPipefiles(children, t));
 			}
+		}
+		
+		return ret;
+	}
+	
+	private void updateSelected(){
+		ListGridRecord[] selectedRecords = treeGrid.getSelectedRecords();
+		Tree tree = treeGrid.getTree();
+		
+		ArrayList<Pipefile> selectedList = getPipefiles(selectedRecords, tree);
+		selected = new Pipefile[selectedList.size()];
+		selected = selectedList.toArray(selected);
+		
+		int numSelected = selected.length;
+		
+		if (numSelected == 0){
+			basicInstructions();
+		}
+		else if (numSelected == 1){
+			viewFile(selected[0]);
+		} else {
+			fileOperations(selected);
+		}
+	}
+	
+	/**
+	 *   Handler for when the selection in the treeGrid is updated
+	 */
+	private SelectionUpdatedHandler selectedPipefilesHandler = new SelectionUpdatedHandler() {
+		public void onSelectionUpdated(SelectionUpdatedEvent event){
+			updateSelected();
 		}
 	};
 	
 	private NodeContextClickHandler contextClickHandler = new NodeContextClickHandler() {
 		public void onNodeContextClick(NodeContextClickEvent event){
 			TreeGrid grid = event.getViewer();
-			Tree tree = grid.getData();
+			final Tree tree = grid.getData();
 			final TreeNode clicked = event.getNode();
-			final String name = clicked.getName();
+			
+			updateSelected();
 			
 			Menu contextMenu = new Menu();
 			
 			if (tree.isFolder(clicked)){
-				int numSelected = selectedPipes != null ? selectedPipes.length : 0;
-			
-				if (clicked.getAttributeAsBoolean("moveHere") == false){
-					MenuItem msg = new MenuItem("Files can only be copied/moved to packages");
-					msg.setEnabled(false);
-					contextMenu.addItem(msg);
-				} else if (numSelected == 0){
-					MenuItem msg = new MenuItem("Select files to copy/move them here");
-					msg.setEnabled(false);
-					contextMenu.addItem(msg);
-				} else {
-					MenuItem copy = new MenuItem("Copy selected files (" + numSelected + ") to " + name);
-					copy.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+				if (clicked.getAttributeAsBoolean("moveHere") == true){
+					MenuItem paste = new MenuItem("Paste");
+					paste.setEnabled(toCopy != null || toMove != null);
+					contextMenu.addItem(paste);
+					
+					paste.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
 						public void onClick(MenuItemClickEvent event){
-							copyFiles(selectedPipes, name);
+							boolean copy = (toCopy != null);
+							Pipefile[] toPaste = copy ? toCopy : toMove;
+							
+							if (copy){
+								copyFiles(toPaste, clicked.getName());
+							} else {
+								moveFiles(toPaste, clicked.getName());
+							}
 						}
 					});
 					
-					MenuItem move = new MenuItem("Move selected files (" + numSelected + ") to " + name);
-					move.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
-						public void onClick(MenuItemClickEvent event){
-							moveFiles(selectedPipes, name);
-						}
-					});
-					
-					contextMenu.addItem(copy);
-					contextMenu.addItem(move);
+					contextMenu.addItem(new MenuItemSeparator());
 				}
-			} else {			
-				MenuItem download = new MenuItem("Download " + name);
-				download.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
-					public void onClick(MenuItemClickEvent event){
-						Pipefile pipe = pipes.get(clicked.getAttribute("absolutePath"));
-						Pipefile[] toDownload = { pipe }; 
-						downloadFiles(toDownload);
-					}
-				});
-				MenuItem remove = new MenuItem("Remove " + name);
-				remove.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
-					public void onClick(MenuItemClickEvent event){
-						Pipefile pipe = pipes.get(clicked.getAttribute("absolutePath"));
-						Pipefile[] toRemove = { pipe }; 
-						removeFiles(toRemove);
-					}
-				});
+			}
 				
-				contextMenu.addItem(download);
-				contextMenu.addItem(remove);
-			}			
+			MenuItem copy = new MenuItem("Copy");
+			copy.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+				public void onClick(MenuItemClickEvent event){												
+					toCopy = selected;
+					toMove = null;
+				}
+			});
+			contextMenu.addItem(copy);
+			
+			MenuItem move = new MenuItem("Move");
+			move.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+				public void onClick(MenuItemClickEvent event){
+					toCopy = null;
+					toMove = selected;
+				}
+			});
+			contextMenu.addItem(move);
+					
+			MenuItem download = new MenuItem("Download");
+			download.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+				public void onClick(MenuItemClickEvent event){
+					downloadFiles(selected);
+				}
+			});
+			contextMenu.addItem(download);
+			
+			MenuItem remove = new MenuItem("Remove");
+			remove.addClickHandler(new com.smartgwt.client.widgets.menu.events.ClickHandler(){
+				public void onClick(MenuItemClickEvent event){
+					removeFiles(selected);
+				}
+			});
+			contextMenu.addItem(remove);	
 			
 			grid.setContextMenu(contextMenu);
 		}
@@ -284,6 +371,15 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
 		
+		backToLastPipefile.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event) {
+				viewFile(lastPipefile);
+			}
+		});
+		
+		message.setStyleName("success");
+		message.setWidth100();
+		
 		// Header -- Button Row
 	    ToolStrip mainToolStrip = new ToolStrip(); 
 	    mainToolStrip.addSpacer(1);
@@ -292,7 +388,13 @@ public class ServerLibraryManager implements EntryPoint {
 	    mainToolStrip.addButton(importButton);
 	    mainToolStrip.addSeparator();
 	    mainToolStrip.addButton(groupsButton);
-		
+	    mainToolStrip.addSeparator();
+	    mainToolStrip.addButton(backToLastPipefile);
+	    mainToolStrip.addFill();
+	    mainToolStrip.addMember(message);
+	    
+	    backToLastPipefile.hide();
+	    
 		// Header
 		VLayout header = new VLayout();
 		header.setHeight(75);
@@ -347,17 +449,17 @@ public class ServerLibraryManager implements EntryPoint {
 	    searchForm.setWidth100();
 	    
 	    // Left -- Tool Strip
-	    ToolStripButton byPackage = new ToolStripButton("View By Package");
-	    byPackage.setActionType(SelectionType.RADIO);
-	    byPackage.setRadioGroup("view");
-	    byPackage.select();
+	    final ToolStripButton byPackage = new ToolStripButton("View By Package");
+	    byPackage.setDisabled(true);
 	    
-	    ToolStripButton byType = new ToolStripButton("View By Module Type");
-	    byType.setActionType(SelectionType.RADIO);
-	    byType.setRadioGroup("view");
+	    final ToolStripButton byType = new ToolStripButton("View By Module Type");
+	    byType.setDisabled(false);
 	    
 	    byPackage.addClickHandler(new ClickHandler() {
 	    	public void onClick (ClickEvent event){	    		
+	    		byPackage.setDisabled(true);
+	    		byType.setDisabled(false);
+	    		
 	    		viewByPackage = true;
 	    		sortFullTree();
 	    	}
@@ -365,6 +467,9 @@ public class ServerLibraryManager implements EntryPoint {
 	    
 	    byType.addClickHandler(new ClickHandler() {
 	    	public void onClick (ClickEvent event){
+	    		byPackage.setDisabled(false);
+	    		byType.setDisabled(true);
+	    		
 	    		viewByPackage = false;
 	    		sortFullTree();
 	    	}
@@ -525,6 +630,7 @@ public class ServerLibraryManager implements EntryPoint {
 		        		
 		        		TreeNode pipe = new TreeNode(p.name);
 		        		pipe.setAttribute("absolutePath", p.absolutePath);
+		        		pipe.setAttribute("viewable", true);
 		        		
 		        		resultsTree.add(pipe, resultsTree.getRoot());
 	        		}
@@ -559,9 +665,9 @@ public class ServerLibraryManager implements EntryPoint {
 		    }
 
 		    public void onSuccess(Void result){
-		    	basicInstructions();
 		    	success("Successfully removed " + selected.length + " file(s).");
 		    	updateFullTree();
+		    	basicInstructions();
 		    }
 		});
 	}
@@ -576,9 +682,9 @@ public class ServerLibraryManager implements EntryPoint {
 		    }
 
 		    public void onSuccess(Void result){
-		    	basicInstructions();
 		    	success("Successfully copied " + selected.length + " file(s) to " + packageName + ".");
 		    	updateFullTree();
+		    	basicInstructions();
 		    }
 		});
 	}
@@ -593,9 +699,9 @@ public class ServerLibraryManager implements EntryPoint {
 		    }
 
 		    public void onSuccess(Void result){
-		    	basicInstructions();
 		    	success("Successfully moved " + selected.length + " file(s) to " + packageName + ".");
 		    	updateFullTree(); 
+		    	basicInstructions();
 		    }
 		});
 	}
@@ -684,60 +790,63 @@ public class ServerLibraryManager implements EntryPoint {
 	////////////////////////////////////////////////////////////
 	
 	private void sortFullTree(){
+		// Clear the map
+		nodes.clear();
+		
 		// Clear the full tree
 		fullTree.removeList(fullTree.getDescendants());
 		
-		LinkedHashMap<String, TreeNode> primaryMap = new LinkedHashMap<String, TreeNode>();
-		LinkedHashMap<String, TreeNode> secondaryMap = new LinkedHashMap<String, TreeNode>();
-		
-		for (Pipefile p : pipes.values()){    		
-    		TreeNode pipeNode = new TreeNode(p.name);
-    		pipeNode.setAttribute("absolutePath", p.absolutePath);
-    		
-    		// Package Tree
-    		TreeNode primaryNode, secondaryNode;
-    		String primaryKey, secondaryKey;
-    		String primaryName, secondaryName;
+		for (Pipefile p : pipes.values()){    		    		
+    		String primaryName, secondaryName;	
     		
     		if (viewByPackage) {
-    			primaryKey = p.packageName;
     			primaryName = p.packageName;
-    			
-    			secondaryKey = p.packageName + p.type;
     			secondaryName = p.type;
-    		} else {
-    			primaryKey = p.type;
+    		} 
+    		else {
     			primaryName = p.type;
-    			
-    			secondaryKey = p.type + p.packageName;
     			secondaryName = p.packageName;
     		}
     		
-    		// Get primary node, add if needed
-    		if (primaryMap.containsKey(primaryKey)){
-    			primaryNode = primaryMap.get(primaryKey);
+    		String primaryKey = primaryName;
+    		String secondaryKey = primaryName + " > " + secondaryName;
+    		
+    		
+    		// Primary Node
+    		TreeNode primaryNode;
+    		if (nodes.containsKey(primaryKey)){
+    			primaryNode = nodes.get(primaryKey);
     		} else {
     			primaryNode = new TreeNode(primaryName);
-    			primaryNode.setAttribute("canSelect", false);
+    			primaryNode.setAttribute("key", primaryKey);
+    			primaryNode.setAttribute("viewable", false);
     			primaryNode.setAttribute("moveHere", viewByPackage);
     			
     			fullTree.add(primaryNode, fullTree.getRoot());
     			
-    			primaryMap.put(primaryKey, primaryNode);
+    			nodes.put(primaryKey, primaryNode);
     		}
     		
-    		// Get secondary node, add if needed
-    		if (secondaryMap.containsKey(secondaryKey)){
-    			secondaryNode = secondaryMap.get(secondaryKey);
+    		// Secondary Node
+    		TreeNode secondaryNode;
+    		if (nodes.containsKey(secondaryKey)){
+    			secondaryNode = nodes.get(secondaryKey);
     		} else {
     			secondaryNode = new TreeNode(secondaryName);
-    			secondaryNode.setAttribute("canSelect", false);
+    			secondaryNode.setAttribute("key", secondaryKey);
+    			secondaryNode.setAttribute("viewable", false);
     			secondaryNode.setAttribute("moveHere", !viewByPackage);
     			
     			fullTree.add(secondaryNode, primaryNode);
     			
-    			secondaryMap.put(secondaryKey, secondaryNode);
+    			nodes.put(secondaryKey, secondaryNode);
     		}
+    		
+    		// Pipefile node
+    		TreeNode pipeNode = new TreeNode(p.name);
+    		pipeNode.setAttribute("key", secondaryKey + " > " + p.name);
+    		pipeNode.setAttribute("absolutePath", p.absolutePath);
+    		pipeNode.setAttribute("viewable", true);
     		
     		fullTree.add(pipeNode, secondaryNode);
 		}
@@ -858,18 +967,18 @@ public class ServerLibraryManager implements EntryPoint {
 		selectedTitle.setHeight(20);
 		selectedTitle.setStyleName("workarea-title");
 		workarea.addMember(selectedTitle);
-		
+ 		
 		// Selected Files
 		ListGrid grid = new ListGrid();
 		grid.setWidth(600);
-		ListGridField nField = new ListGridField("name", "Name");  
-        ListGridField pField = new ListGridField("packageName", "Package");  
-        ListGridField tField = new ListGridField("type", "Type");
-        grid.setFields(nField, pField, tField);
+		ListGridField nField = new ListGridField("name", "Name");
+		ListGridField pField = new ListGridField("packageName", "Package");
+		ListGridField tField = new ListGridField("type", "Type");
+		grid.setFields(nField, pField, tField);
         
 		ListGridRecord[] records = new ListGridRecord[selected.length];
 		
-		for(int i = 0; i < selected.length; i++){
+		for(int i = 0; i < selected.length; i++){			
 			Pipefile pipe = selected[i];
 			
 			ListGridRecord record = new ListGridRecord();
@@ -901,8 +1010,8 @@ public class ServerLibraryManager implements EntryPoint {
 	////////////////////////////////////////////////////////////
 	
 	private String loopFound = "<b>LOOP IN GROUP DEPENDENCIES</b>";
-	private String groupStart = "g:";
-	private String groupEnd = "";
+	private String groupStart = "[";
+	private String groupEnd = "]";
 	
 	private String groupHint = "Comma separated list<br/>" +
 			"Group syntax = " + groupStart + "groupName" + groupEnd +
@@ -952,8 +1061,12 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *  Sets the workarea with file operations and a form to edit
 	 */
-	private void viewFile(final Pipefile pipe){		
+	private void viewFile(final Pipefile pipe){
 		clearWorkarea();
+		
+		lastPipefile = pipe;
+		backToLastPipefile.hide();
+		
 		
 		// File Operations
 		fileOperationsActions(new Pipefile[] {pipe});
@@ -1390,8 +1503,8 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *  Prints a success message to the top of workarea
 	 */
-	private void success(String message){
-		// TODO
+	private void success(String msg){
+		message.setContents(msg);
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -1402,6 +1515,15 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Clears the workarea
 	 */
 	private void clearWorkarea(){
+		if (lastPipefile != null){
+			if (pipes.containsValue(lastPipefile)){
+				backToLastPipefile.setTitle("Back to " + lastPipefile.name);
+				backToLastPipefile.show();
+			} else {
+				lastPipefile = null;
+			}
+		}
+		
 		workarea.removeMembers(workarea.getMembers());
 	}
 }

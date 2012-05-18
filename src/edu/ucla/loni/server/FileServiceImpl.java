@@ -1,10 +1,8 @@
 package edu.ucla.loni.server;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 
 import java.sql.Timestamp;
 
@@ -164,9 +162,18 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		}
 		
 		// Copy the file
-		Path srcPath = Paths.get(oldAbsolutePath);
-		Path destPath = Paths.get(newAbsolutePath);
-		Files.copy(srcPath, destPath, StandardCopyOption.REPLACE_EXISTING);	
+		FileInputStream in = new FileInputStream(src);
+		FileOutputStream out = new FileOutputStream(dest);
+		
+		int length = 0;
+		byte[] buffer = new byte[8192];
+		while ((length = in.read(buffer)) != -1){
+			out.write(buffer, 0, length);
+		}
+		
+		in.close();
+		out.flush();
+		out.close();
 
 		// Update Pipefile
 		Pipefile newPipe = pipe;
