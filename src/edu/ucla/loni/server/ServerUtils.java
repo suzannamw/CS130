@@ -9,6 +9,7 @@ import org.jdom2.Element;
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.XMLOutputter;
 
+import edu.ucla.loni.shared.Group;
 import edu.ucla.loni.shared.Pipefile;
 
 public class ServerUtils {
@@ -283,9 +284,11 @@ public class ServerUtils {
 	
 	/**
 	 * Writes the access file for the root directory
+	 * @throws Exception 
 	 */
-	public static void writeAccessFile(String rootDirectory){
-		// TODO
+	public static void writeAccessFile(String rootDirectory) throws Exception{
+		
+		
 		// Create a blank document (use syntax similar as found in readXML)
 		// Initialize with root element "access" with children "files" and "groups"
 		// See Access Restrictions XML document, option 4
@@ -299,108 +302,59 @@ public class ServerUtils {
 		//   Create element in document
 		
 		// Write XML document with writeXML function
-		
-		// Code copied over from Michael for writing groups.xml
 
-//		//update groups.xml
-//		File f = new File("groups.xml");
-//		if (!f.exists()) {
-//			byte[] buf = "<groups></groups>".getBytes();
-//			OutputStream out = new FileOutputStream(f);
-//			out.write(buf);
-//		}
-//		DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-//		DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-//		Document doc = dBuilder.parse(f);
-//		
-//		boolean groupExist = false;
-//		NodeList groups = doc.getElementsByTagName("group");
-//		for (int i = 0; i < groups.getLength(); i++) {
-//			Node g = groups.item(i);
-//			NamedNodeMap attributes = g.getAttributes();
-//			int groupId = Integer.parseInt(attributes.getNamedItem("groupId").getNodeValue());
-//			if (groupId == group.groupId) {
-//				groupExist = true;
-//				attributes.getNamedItem("name").setTextContent(group.name);
-//				attributes.getNamedItem("numUsers").setTextContent(Integer.toString(group.numUsers));
-//				//remove previous users
-//				NodeList users = g.getChildNodes();
-//				int users_len = users.getLength();
-//				for (int j = 0; j < users_len; j++) 
-//					g.removeChild(users.item(0));
-//				
-//				//add users
-//				String users_string = group.users;
-//				while (users_string.contains(", ")) {
-//					Element e = doc.createElement("user");
-//					e.setTextContent(users_string.substring(0, users_string.indexOf(", ")));
-//					users_string = users_string.substring(users_string.indexOf(", ") + 2);
-//					g.appendChild(e);
-//					
-//				}
-//				Element e = doc.createElement("user");
-//				e.setTextContent(users_string);
-//				g.appendChild(e);
-//				
-//				writeXmlFile(doc, "groups.xml");
-//			}
-//		}
-//		if (groupExist) return;
-//		//create new group
-//		Element g = doc.createElement("group");
-//		g.setAttribute("name", group.name);
-//		g.setAttribute("groupId", Integer.toString(group.groupId));
-//		g.setAttribute("numUsers", Integer.toString(group.numUsers));
-//		String users_string = group.users;
-//		while (users_string.contains(", ")) {
-//			Element e = doc.createElement("user");
-//			e.setTextContent(users_string.substring(0, users_string.indexOf(", ")));
-//			users_string = users_string.substring(users_string.indexOf(", ") + 2);
-//			g.appendChild(e);
-//		}
-//		Element e = doc.createElement("user");
-//		e.setTextContent(users_string);
-//		g.appendChild(e);
-//		doc.getFirstChild().appendChild(g);
-//		writeXmlFile(doc, "groups.xml");
+		String accessFilePath = rootDirectory + "/.access.xml";
+		File f = new File(accessFilePath);
+
+		Element rootEle = new Element("access");
+		Document doc = new Document(rootEle);
 		
+		Element filesRoot = new Element("files");
+		Element groupsRoot = new Element("groups");
 		
-//		File f = new File("groups.xml");
-//		//groups file does not exist
-//		if (!f.exists()) 
-//			return;
-//		//change groups.xml
-//		DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-//		DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-//		Document doc = dBuilder.parse(f);
-//		
-//		Node e = doc.getFirstChild();
-//		NodeList filegroups = doc.getElementsByTagName("group");
-//		int numgroups = filegroups.getLength();
-//		int[] removeGroupNums = new int[groups.length];
-//		int index = 0;
-//		for (int j = 0; j < groups.length; j++) {
-//			removeGroupNums[j] = -1;
-//		}
-//
-//		for (int i = 0; i < numgroups; i++) {
-//			Node g = filegroups.item(i);
-//			NamedNodeMap attributes = g.getAttributes();
-//			int groupId = Integer.parseInt(attributes.getNamedItem("groupId").getNodeValue());
-//			for (int j = 0; j < groups.length; j++) {
-//				if (groupId == groups[j].groupId) {
-//					removeGroupNums[index] = i;
-//					index++;
-//				}
-//			}
-//
-//		}
-//		for (int i = 0; i < groups.length; i++) {
-//			if (removeGroupNums[i] == -1) break;
-//			e.removeChild(filegroups.item(removeGroupNums[i]-i));
-//			System.out.println(removeGroupNums[i]);
-//		}
-//		writeXmlFile(doc, "groups.xml");
+		Group[] groups = Database.selectGroups();
+		Pipefile[] pipes = Database.selectPipefiles(Database.selectDirectory(rootDirectory));
+		for(Pipefile p : pipes) {
+			Element file = new Element("file");
+			file.setAttribute("type", p.type); // for now
+			file.setAttribute("name", p.name);
+			file.setAttribute("package", p.packageName);
+			String[] fileGroups = p.access.split(",");
+			for (String fileGroup : fileGroups) {
+				if (fileGroup.indexOf("[") != -1 && fileGroup.indexOf("]") != -1) {
+					//group
+					//do we need to strip []?
+					file.addContent(new Element("agent").addContent(fileGroup).setAttribute("group", "true"));
+				} else {
+					//not a group
+					file.addContent(new Element("agent").addContent(fileGroup).setAttribute("group", "false"));
+			
+				}
+			}
+			filesRoot.addContent(file);
+			
+		}
+		
+		for(Group g : groups) {
+			Element group = new Element("group");
+			group.setAttribute("name", g.name); // for now
+			String[] users = g.users.split(",");
+			for (String user : users) {
+				if (user.indexOf("[") != -1 && user.indexOf("]") != -1) {
+					//group
+					//do we need to strip []?
+					group.addContent(new Element("agent").addContent(user).setAttribute("group", "true"));
+				} else {
+					//not a group
+					
+					group.addContent(new Element("agent").addContent(user).setAttribute("group", "false"));
+				}
+			}
+			groupsRoot.addContent(group);
+		}
+		doc.addContent(filesRoot);
+		doc.addContent(groupsRoot);
+		writeXML(f, doc);
 	}
 	
 	
