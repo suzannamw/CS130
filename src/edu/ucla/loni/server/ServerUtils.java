@@ -9,8 +9,7 @@ import org.jdom2.Element;
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.XMLOutputter;
 
-import edu.ucla.loni.shared.Group;
-import edu.ucla.loni.shared.Pipefile;
+import edu.ucla.loni.shared.*;
 
 public class ServerUtils {
 	/**  
@@ -286,76 +285,101 @@ public class ServerUtils {
 	 * Writes the access file for the root directory
 	 * @throws Exception 
 	 */
-	public static void writeAccessFile(String rootDirectory) throws Exception{
-		
-		
-		// Create a blank document (use syntax similar as found in readXML)
-		// Initialize with root element "access" with children "files" and "groups"
-		// See Access Restrictions XML document, option 4
-		
-		// Query database, get all pipefiles for the directory where access is not blank
-		// For each file
-		//   Create element in document
-		
-		// Query database, get all groups
-		// For each group
-		//   Create element in document
-		
-		// Write XML document with writeXML function
-
+	public static void writeAccessFile(String rootDirectory) throws Exception{		
 		String accessFilePath = rootDirectory + "/.access.xml";
 		File f = new File(accessFilePath);
-
-		Element rootEle = new Element("access");
-		Document doc = new Document(rootEle);
 		
+		// If the path doesn't exist return
+		if (!f.exists()){
+			return;
+		}
+		
+		// Create blank document
+		Document doc = new Document();
+		
+		// Add root
+		Element root = new Element("access");
+		doc.addContent(root);
+		
+		// Add files child to root
 		Element filesRoot = new Element("files");
-		Element groupsRoot = new Element("groups");
+		root.addContent(filesRoot);
 		
-		Group[] groups = Database.selectGroups();
+		// For each pipe, add a file child to files
 		Pipefile[] pipes = Database.selectPipefiles(Database.selectDirectory(rootDirectory));
-		for(Pipefile p : pipes) {
-			Element file = new Element("file");
-			file.setAttribute("type", p.type); // for now
-			file.setAttribute("name", p.name);
-			file.setAttribute("package", p.packageName);
-			String[] agents = p.access.split(",");
-			for (String agent : agents) {
-				if (isGroup(agent)) {
-					//group
-					//do we need to strip []?
-					file.addContent(new Element("agent").addContent(trimAgent(agent)).setAttribute("group", "true"));
-				} else {
-					//not a group
-					file.addContent(new Element("agent").addContent(trimAgent(agent)).setAttribute("group", "false"));
-			
+		
+		if (pipes != null){
+			for(Pipefile p : pipes) {
+				// OnlY add the pipefile if access is not empty
+				if (!p.access.equals("")){
+					// File Element
+					Element file = new Element("file");
+					
+					// Set attributes
+					file.setAttribute("type", p.type); // for now
+					file.setAttribute("name", p.name);
+					file.setAttribute("package", p.packageName);
+					
+					// Add agents
+					String[] agents = p.access.split(",");
+					for (String agent : agents) {
+						file.addContent(agentElement(agent));
+					}
+					
+					// Add to file element to files
+					filesRoot.addContent(file);
 				}
 			}
-			filesRoot.addContent(file);
-			
 		}
 		
-		for(Group g : groups) {
-			Element group = new Element("group");
-			group.setAttribute("name", g.name); // for now
-			String[] agents = g.users.split(",");
-			for (String agent : agents) {
-				if (isGroup(agent)) {
-					//group
-					group.addContent(new Element("agent").addContent(trimAgent(agent)).setAttribute("group", "true"));
-				} else {
-					//not a group
-					
-					group.addContent(new Element("agent").addContent(trimAgent(agent)).setAttribute("group", "false"));
+		// Add groups child to root
+		Element groupsRoot = new Element("groups");
+		root.addContent(groupsRoot);
+		
+		// For each group, add a group child to groups
+		Group[] groups = Database.selectGroups();
+		
+		if (groups != null){
+			for(Group g : groups) {
+				// Group Element
+				Element group = new Element("group");
+				
+				// Set attribute
+				group.setAttribute("name", g.name); // for now
+				
+				// Add agents
+				String[] agents = g.users.split(",");
+				for (String agent : agents) {
+					group.addContent(agentElement(agent));
 				}
+				
+				// Add group element to groups
+				groupsRoot.addContent(group);
 			}
-			groupsRoot.addContent(group);
 		}
-		doc.addContent(filesRoot);
-		doc.addContent(groupsRoot);
+		
+		// Write document
 		writeXML(f, doc);
 	}
 	
+	/**
+	 *  Creates an agent Element
+	 */
+	public static Element agentElement(String agent){
+		agent = agent.trim();
+		
+		String value, group;
+		
+		if (GroupSyntax.isGroup(agent)){
+			value = GroupSyntax.agentToGroup(agent);
+			group = "true";
+		} else {
+			value = agent;
+			group = "false";
+		}
+		
+		return new Element("agent").addContent(value).setAttribute("group", group);
+	}
 	
 	/**
 	 * recursively remove dir if it is empty
@@ -369,21 +393,5 @@ public class ServerUtils {
 			dir.delete();
 			recursiveRemoveDir(dir.getParentFile());
 		}
-	}
-	
-	/*
-	 * input: a string that might be a user or a group
-	*/
-	public static boolean isGroup(String agent)
-	{
-		return agent.startsWith("[") && agent.endsWith("]");
-	}
-	
-	/*
-	 * given an agent, remove space and []
-	 */
-	public static String trimAgent(String agent)
-	{
-		return agent.replace("[", "").replace("]", "").trim();
 	}
 }

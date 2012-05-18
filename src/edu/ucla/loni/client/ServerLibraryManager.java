@@ -21,6 +21,7 @@ import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.smartgwt.client.data.Record;
 import com.smartgwt.client.types.Alignment;
 import com.smartgwt.client.types.KeyNames;
+import com.smartgwt.client.types.ListGridComponent;
 import com.smartgwt.client.types.SelectionAppearance;
 import com.smartgwt.client.types.VerticalAlignment;
 import com.smartgwt.client.util.SC;
@@ -1010,11 +1011,9 @@ public class ServerLibraryManager implements EntryPoint {
 	////////////////////////////////////////////////////////////
 	
 	private String loopFound = "<b>LOOP IN GROUP DEPENDENCIES</b>";
-	private String groupStart = "[";
-	private String groupEnd = "]";
 	
 	private String groupHint = "Comma separated list<br/>" +
-			"Group syntax = " + groupStart + "groupName" + groupEnd +
+			"Group syntax = " + GroupSyntax.start + "groupName" + GroupSyntax.end +
 			"<br/>Groups expanded below";
 	
 	private String expandGroupsRecursive(String originalGroup, String list, String base){
@@ -1023,23 +1022,24 @@ public class ServerLibraryManager implements EntryPoint {
 		String[] agents = list.split(",");
 		
 		for(String agent : agents){
+			// Trim whitespace
 			agent = agent.trim();
 			
-			if (agent.startsWith(groupStart) && agent.endsWith(groupEnd)){
-				String groupName = agent.substring(groupStart.length(), agent.length() - groupEnd.length());
+			if (GroupSyntax.isGroup(agent)){
+				String group = GroupSyntax.agentToGroup(agent);
 				
-				if (groupName.equals(originalGroup)){
-					ret += base + loopFound;
+				if (group.equals(originalGroup)){
+					ret += base + loopFound + "<br/>";
 					return ret;
 				}
-				else if (groups.containsKey(groupName)){
-					Group g = groups.get(groupName);
+				else if (groups.containsKey(group)){
+					Group g = groups.get(group);
 					
-					ret += base + groupStart + groupName + groupEnd + " = " + g.users + "<br/>";
+					ret += base + group + " = " + g.users + "<br/>";
 					ret += expandGroupsRecursive(originalGroup, g.users, base + "&nbsp;&nbsp;&nbsp;&nbsp;");
 				} 
 				else {
-					ret += base + groupStart + groupName + groupEnd + " is undefined" + "<br/>";;
+					ret += base + group + " is undefined" + "<br/>";;
 				}
 			}
 		}
@@ -1055,7 +1055,7 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		info.setValue(msg);
 		
-		return msg.endsWith(loopFound);
+		return msg.contains(loopFound);
 	}
 	
 	/**
@@ -1231,8 +1231,19 @@ public class ServerLibraryManager implements EntryPoint {
 		    }
 		});
 		
+		Button cancel = new Button("Cancel");
+		cancel.addClickHandler(new ClickHandler(){
+			public void onClick(ClickEvent event){
+				basicInstructions();
+			}
+		});
+		
+		HLayout buttonRow = new HLayout(10);
+		buttonRow.addMember(update);
+		buttonRow.addMember(cancel);
+		
 		workarea.addMember(form);
-		workarea.addMember(update);
+		workarea.addMember(buttonRow);
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -1302,16 +1313,21 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		
 		// ToolStrip
-		ToolStripButton newGroup = new ToolStripButton("New Group");
+		Label total = new Label(records.length + " groups");
+		
+		ToolStripButton newGroup = new ToolStripButton();
+		newGroup.setIcon("[SKIN]/actions/add.png");  
+		newGroup.setPrompt("Add New Group"); 
 		newGroup.addClickHandler(new ClickHandler(){
 			public void onClick(ClickEvent event){
 				Group newGroup = new Group();
 				editGroup(newGroup);
 			}
 		});
-		
-		final ToolStripButton removeGroups = new ToolStripButton("Remove Selected Groups");
-		removeGroups.setDisabled(true);
+
+		ToolStripButton removeGroups = new ToolStripButton();
+		removeGroups.setIcon("[SKIN]/actions/remove.png");  
+		removeGroups.setPrompt("Remove Selected Groups"); 
 		removeGroups.addClickHandler(new ClickHandler(){
 			public void onClick(ClickEvent event){
 				ListGridRecord[] selected = grid.getSelectedRecords();
@@ -1330,27 +1346,21 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
 		
-		ToolStrip top = new ToolStrip();
-		top.setWidth(width);
-		top.addSpacer(1);
-		top.addButton(newGroup);
-		top.addSeparator();
-		top.addButton(removeGroups);
+		ToolStrip bottom = new ToolStrip();
+		bottom.setWidth100();
+		bottom.addMember(total);
+		bottom.addFill();
+		bottom.addButton(newGroup);
+		bottom.addButton(removeGroups);
 		
-		grid.addSelectionUpdatedHandler(new SelectionUpdatedHandler(){
-			public void onSelectionUpdated(SelectionUpdatedEvent event){
-				ListGridRecord[] selected = grid.getSelectedRecords();
-				if (selected != null && selected.length > 0){
-					removeGroups.setDisabled(false);
-				} else {
-					removeGroups.setDisabled(true);
-				}
-			}
-		});
+		grid.setGridComponents(new Object[] {  
+				ListGridComponent.HEADER,   
+                ListGridComponent.BODY,   
+                bottom  
+        });
 		
 		workarea.addMember(title);
 		workarea.addMember(description);
-		workarea.addMember(top);
 		workarea.addMember(grid);
 	}
 
@@ -1419,11 +1429,22 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
 		
+		Button cancel = new Button("Cancel");
+		cancel.addClickHandler(new ClickHandler(){
+			public void onClick(ClickEvent event){
+				viewGroups();
+			}
+		});
+		
+		HLayout buttonRow = new HLayout(10);
+		buttonRow.addMember(update);
+		buttonRow.addMember(cancel);
+		
 		// TODO, button to view all files that use this group
 		
 		workarea.addMember(title);
 		workarea.addMember(form);
-		workarea.addMember(update);
+		workarea.addMember(buttonRow);
 	}
 	
 	////////////////////////////////////////////////////////////
