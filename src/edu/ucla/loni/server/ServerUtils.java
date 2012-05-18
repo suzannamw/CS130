@@ -319,15 +319,15 @@ public class ServerUtils {
 			file.setAttribute("type", p.type); // for now
 			file.setAttribute("name", p.name);
 			file.setAttribute("package", p.packageName);
-			String[] fileGroups = p.access.split(",");
-			for (String fileGroup : fileGroups) {
-				if (fileGroup.indexOf("[") != -1 && fileGroup.indexOf("]") != -1) {
+			String[] agents = p.access.split(",");
+			for (String agent : agents) {
+				if (isGroup(agent)) {
 					//group
 					//do we need to strip []?
-					file.addContent(new Element("agent").addContent(fileGroup).setAttribute("group", "true"));
+					file.addContent(new Element("agent").addContent(trimAgent(agent)).setAttribute("group", "true"));
 				} else {
 					//not a group
-					file.addContent(new Element("agent").addContent(fileGroup).setAttribute("group", "false"));
+					file.addContent(new Element("agent").addContent(trimAgent(agent)).setAttribute("group", "false"));
 			
 				}
 			}
@@ -338,16 +338,15 @@ public class ServerUtils {
 		for(Group g : groups) {
 			Element group = new Element("group");
 			group.setAttribute("name", g.name); // for now
-			String[] users = g.users.split(",");
-			for (String user : users) {
-				if (user.indexOf("[") != -1 && user.indexOf("]") != -1) {
+			String[] agents = g.users.split(",");
+			for (String agent : agents) {
+				if (isGroup(agent)) {
 					//group
-					//do we need to strip []?
-					group.addContent(new Element("agent").addContent(user).setAttribute("group", "true"));
+					group.addContent(new Element("agent").addContent(trimAgent(agent)).setAttribute("group", "true"));
 				} else {
 					//not a group
 					
-					group.addContent(new Element("agent").addContent(user).setAttribute("group", "false"));
+					group.addContent(new Element("agent").addContent(trimAgent(agent)).setAttribute("group", "false"));
 				}
 			}
 			groupsRoot.addContent(group);
@@ -370,5 +369,21 @@ public class ServerUtils {
 			dir.delete();
 			recursiveRemoveDir(dir.getParentFile());
 		}
+	}
+	
+	/*
+	 * input: a string that might be a user or a group
+	*/
+	public static boolean isGroup(String agent)
+	{
+		return agent.startsWith("[") && agent.endsWith("]");
+	}
+	
+	/*
+	 * given an agent, remove space and []
+	 */
+	public static String trimAgent(String agent)
+	{
+		return agent.replace("[", "").replace("]", "").trim();
 	}
 }
