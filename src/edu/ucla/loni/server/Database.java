@@ -53,6 +53,34 @@ public class Database {
 		}
 	}
 	
+	/**
+	 *	possibly subject for later removal
+	 *  currently used inside Upload.java
+	 *  this function returns absolutePath to the root directory
+	 *  where the transferred file would be placed inside the server
+	 *  
+	 *  Currently this function make NOT a good assumption that
+	 *  there is only 1 root dir of interest...
+	 *  
+	 *  Possible fix :: force user to select which library will be used 
+	 */
+	public static String getRootDir() throws Exception
+	{
+		Connection con = getDatabaseConnection();
+		
+		PreparedStatement stmt = con.prepareStatement(
+			"SELECT * " +
+			"FROM directories;"		
+		);
+		ResultSet rs = stmt.executeQuery();
+		
+		if (rs.next()){
+			return rs.getString(2);
+		} else {
+			return "";
+		}
+	}
+	
 	public static void insertDirectory(String absolutePath) throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
