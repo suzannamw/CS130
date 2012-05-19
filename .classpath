@@ -7,5 +7,7 @@
 	<classpathentry kind="lib" path="war/WEB-INF/lib/smartgwt.jar"/>
 	<classpathentry kind="lib" path="war/WEB-INF/lib/hsqldb.jar"/>
 	<classpathentry kind="lib" path="war/WEB-INF/lib/jdom-2.0.1.jar"/>
+	<classpathentry kind="lib" path="war/WEB-INF/lib/gwtupload-0.6.4.jar"/>
+	<classpathentry kind="lib" path="war/WEB-INF/lib/commons-fileupload-1.2.2.jar"/>
 	<classpathentry kind="output" path="war/WEB-INF/classes"/>
 </classpath>

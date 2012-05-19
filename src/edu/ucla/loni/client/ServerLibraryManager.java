@@ -1,6 +1,11 @@
 package edu.ucla.loni.client;
 
 import edu.ucla.loni.shared.*;
+import gwtupload.client.IUploadStatus.Status;
+import gwtupload.client.IUploader;
+import gwtupload.client.IUploader.UploadedInfo;
+import gwtupload.client.MultiUploader;
+import gwtupload.client.SingleUploader;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1451,17 +1456,32 @@ public class ServerLibraryManager implements EntryPoint {
 	// Private Functions - Workarea - Import
 	////////////////////////////////////////////////////////////
 	
+	  private IUploader.OnFinishUploaderHandler onFinishUploaderHandler = new IUploader.OnFinishUploaderHandler() {
+		  public void onFinish(IUploader uploader) {
+			  if (uploader.getStatus() == Status.SUCCESS) {
+				  UploadedInfo info = uploader.getServerInfo();
+				  success("Successfully Uploaded " + info.name);
+			  }
+		  }
+	  };
+	
 	/**
 	 *  Sets workarea to an import form
 	 */
 	private void importForm(){
 		// TODO
-		
 		// Allow user to select files/folders
 		//   Checkbox for recursive
 		// Allow user to supply a url
 		// Import button
 		//   On click, import the files, go back to basic instructions
+		clearWorkarea();
+		
+		SingleUploader uploader = new SingleUploader();
+		uploader.addOnFinishUploadHandler(onFinishUploaderHandler);
+		uploader.setServletPath(uploader.getServletPath() + "?root=" + URL.encode(rootDirectory));
+		
+		workarea.addMember(uploader);
 	}
 	
 	////////////////////////////////////////////////////////////
