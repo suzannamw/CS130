@@ -1477,11 +1477,27 @@ public class ServerLibraryManager implements EntryPoint {
 		//   On click, import the files, go back to basic instructions
 		clearWorkarea();
 		
-		SingleUploader uploader = new SingleUploader();
+		/*SingleUploader uploader = new SingleUploader();
 		uploader.addOnFinishUploadHandler(onFinishUploaderHandler);
 		uploader.setServletPath(uploader.getServletPath() + "?root=" + URL.encode(rootDirectory));
 		
-		workarea.addMember(uploader);
+		workarea.addMember(uploader);*/
+		final DynamicForm uploadForm = new DynamicForm();
+		uploadForm.setSize("54px", "147px");
+		uploadForm.setEncoding(Encoding.MULTIPART);			//need to remain to work corectly
+		final UploadItem fileItem = new UploadItem("image");		//need to remain to work corectly
+		uploadForm.setAction(GWT.getModuleBaseURL()+"upload");		//need to remain to work corectly
+		IButton uploadButton = new IButton("Attachment");
+	        uploadButton.addClickHandler(new com.smartgwt.client.widgets.events.ClickHandler()
+	        {
+	            @Override
+	            public void onClick(
+	                    com.smartgwt.client.widgets.events.ClickEvent event) {
+	                uploadForm.submitForm();				//need to remain to work corectly
+	            }
+	        });
+		uploadForm.setItems(fileItem);					//need to remain to work corectly
+		workarea.setMembers(uploadForm, uploadButton);
 	}
 	
 	////////////////////////////////////////////////////////////
