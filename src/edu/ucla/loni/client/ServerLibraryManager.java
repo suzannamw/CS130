@@ -31,6 +31,10 @@ import com.smartgwt.client.types.SelectionAppearance;
 import com.smartgwt.client.types.VerticalAlignment;
 import com.smartgwt.client.util.SC;
 
+import com.smartgwt.client.widgets.IButton;
+import com.smartgwt.client.types.Encoding;
+import com.smartgwt.client.widgets.form.fields.UploadItem;
+
 import com.smartgwt.client.widgets.events.ClickEvent;  
 import com.smartgwt.client.widgets.events.ClickHandler;
 import com.smartgwt.client.widgets.events.ResizedEvent;
