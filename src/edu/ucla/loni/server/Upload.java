@@ -11,7 +11,7 @@ import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.fileupload.FileItem;
 
 @SuppressWarnings("serial")
-public class Upload extends UploadAction {
+public class Upload extends HttpServlet//extends UploadAction {
 	/*@Override
 	  public String executeAction(HttpServletRequest request, List<FileItem> sessionFiles) throws UploadActionException {
 	    	String root = request.getParameter("root");
