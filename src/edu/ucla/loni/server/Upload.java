@@ -4,21 +4,22 @@ package edu.ucla.loni.server;
 //import gwtupload.server.exceptions.UploadActionException;
 
 import java.io.File;
+import java.util.Iterator;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
-//import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileItemFactory;
+import org.apache.commons.fileupload.disk.DiskFileItemFactory;
+import org.apache.commons.fileupload.servlet.ServletFileUpload;
 
 import edu.ucla.loni.shared.*;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.io.FileOutputStream;
-import java.io.PrintWriter;
 import java.sql.Timestamp;
-import java.io.DataInputStream;
 
 @SuppressWarnings("serial")
 public class Upload extends HttpServlet//extends UploadAction
@@ -84,134 +85,124 @@ public class Upload extends HttpServlet//extends UploadAction
 		return ret;
 	}
 	
-	//THIS IS JUST A FIRST VERSION OF doPost function
-	//does not yet have URL implementation
-	public void doPost(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+	public void doPost(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException
+	{
 		File uploadedFile;
-		try
-		{   
-			//to get the content type information from JSP Request Header   
-			String contentType = req.getContentType();
-			if ((contentType != null) && (contentType.indexOf("multipart/form-data") >= 0))   
-			{   
-				DataInputStream in = new DataInputStream(req.getInputStream());   
-				int formDataLength = req.getContentLength();
-				byte dataBytes[] = new byte[req.getContentLength()];   
-				int byteRead = 0;   
-				int totalBytesRead = 0;   
-				
-				while (totalBytesRead < formDataLength)
+		String rootDir = "";
+		if ( ServletFileUpload.isMultipartContent( req ) )
+		{
+			// Create a factory for disk-based file items
+			FileItemFactory factory = new DiskFileItemFactory();
+			// Create a new file upload handler
+			ServletFileUpload upload = new ServletFileUpload( factory );
+			try
+			{
+				@SuppressWarnings("unchecked")
+				List<FileItem> items = upload.parseRequest( req );
+				for ( FileItem item : items )
 				{
-					byteRead = in.read(dataBytes, totalBytesRead,formDataLength);   
-					totalBytesRead += byteRead;   
-				}
-				
-				
-				res.setContentType("application/octet-stream");
-				String file = new String(dataBytes);
-				
-				//apparently each transfer of file gets encapsulated with header and tail_inforamtion
-				//It has been noticed that header ends with following byte pattern: 0x0D 0X0A 0x0D 0X0A
-				//so this pattern is searched and everything before it along with it is removed...
-				//same applies to the tail_information
-				byte end_byte_codes[] = new byte[4];
-				end_byte_codes[0] = 0x0D;
-				end_byte_codes[1] = 0x0A;
-				end_byte_codes[2] = 0x0D;
-				end_byte_codes[3] = 0x0A;
-				String str_end_byte_codes = new String(end_byte_codes);
-				int start_index = file.indexOf(str_end_byte_codes, file.indexOf("Content-Type:")) + 4;
-				
-				//under normal circumstances when app functions on the actual server
-				//it does  not make sense to check whether 'tmp' folder exusts or not
-				//but since this app right now runs not only on the actual server
-				//but also on other windows machines, the existence of tmp folder is checked
-				//and if it does not exist it gets created...
-				File temp_folder = new File(temp_dir);
-				//the following IF_clause is subject for removal for actual release version
-				if( temp_folder.exists() == false )
-				{
-					boolean success = temp_folder.mkdirs();
-					if (!success){
-						throw new Exception("Temporary folder (which did not exist) could not be created");
+					if ( item.isFormField() )
+					{
+						//if it is not file, than process it separatelly
+						//in this case two types of parameters will be supplied before all
+						//files are supplied -- absolute path of library where all files need
+						//to be placed in (i.e. currently it is just abs path of CraniumLibrary on the server side)
+						//and the second parameter is a String that contains URLs
+						if( item.getFieldName().compareTo("specify name of library :") == 0 )
+						{
+							rootDir = item.getString();
+							res.getWriter().println("rootDIR = " + rootDir);
+						}
+						else if( item.getFieldName().compareTo("specify addresses of URLs :") == 0 )
+						{
+							res.getWriter().println(item.getString());
+						}
+						continue;
 					}
-				}
-				
-				//create temp file, make it with PIPE extension so that
-				//it can be analyzed by XML parser... 
-			    	uploadedFile = File.createTempFile("upload_file-", ".pipe", new File(temp_dir));
-				
-				FileOutputStream fileOut = new FileOutputStream(uploadedFile);
-				fileOut.write(dataBytes, start_index, totalBytesRead - start_index - 50);
-				fileOut.flush();   
-				fileOut.close();
-				
-				//analyze XML of this file
-				Pipefile pipe = ServerUtils.parseFile(uploadedFile);
-				
-				// Get old and new absolute path directory
-				String oldAbsolutePath = pipe.absolutePath;
-				String newAbsolutePath = ServerUtils.newAbsolutePath(pipe.absolutePath, pipe.packageName, pipe.type);
-				//update actual name of file from temp_name to real_name stored inside pipe variable
-				newAbsolutePath = ServerUtils.extractDirName(newAbsolutePath) + File.separatorChar + pipe.name + ".pipe";
- 				
- 				//getRootDir is new function inside Database.java
- 				//I addressed problem with it at that file
- 				//right now it is just a quick and dirty fix, later will be corrected
-				String rootDir = Database.getRootDir();
-				if( rootDir == "" )
-				{
-					throw new Exception("rootDir can not be acquired");
-				}
-				
-				//so the actual newAbsolutePath just stores the part of path starting inside library
-				//which means to make the absolute path we need to add address to the root folder
-				//do not need separatorChar, since newAbsolutePath starts with it...
-				//i.e. newAbsolutePath = "\package_dir\type\file_name.pipe"
-				//     root = "\home\...\CraniumLibrary"
-				newAbsolutePath = rootDir + newAbsolutePath;
-				
-				File dest = new File(newAbsolutePath);
-				// If the destination directory does not exist, create it and necessary parent directories
-				File destDir = dest.getParentFile();
-				
-				if (destDir.exists() == false){
-					boolean success = destDir.mkdirs();
-					if (!success){
-						throw new Exception("Destination folders could not be created");
+					else
+					{
+						res.getWriter().println("FieldName = " + item.getFieldName() + " , FileName = " + item.getName() + " , size = " + item.getSize());
 					}
+					String fileName = item.getName();
+					File uploadedFile = new File( temp_dir, fileName );
+					if ( uploadedFile.createNewFile() )
+					{
+						item.write( uploadedFile );
+						res.setStatus( HttpServletResponse.SC_CREATED );
+					}
+					else
+					{
+						throw new IOException( "The file already exists" );
+					}
+					//analyze XML of this file
+					Pipefile pipe = ServerUtils.parseFile(uploadedFile);
+					// Get old and new absolute path directory
+					String oldAbsolutePath = pipe.absolutePath;
+					String newAbsolutePath = ServerUtils.newAbsolutePath(pipe.absolutePath, pipe.packageName, pipe.type);
+					//update actual name of file from temp_name to real_name stored inside pipe variable
+					newAbsolutePath = ServerUtils.extractDirName(newAbsolutePath) + File.separatorChar + pipe.name + ".pipe";
+					//
+					if( rootDir == "" )
+					{
+						//ideally separate parameter should arrive that tells exactly the path to the library
+						//if for some reason, it did not => just peek the first library in the table DIRECTORIES
+						//
+						//so if rootDir is empty string by the time first file or URL start getting processed
+						//that means parameter that sets library was lost or not specified by the client
+						rootDir = Database.getRootDir();
+						if( rootDir == "" )
+						{
+							throw new IOException("rootDir has not been found.");
+						}
+					}
+					newAbsolutePath = rootDir + newAbsolutePath;
+					//
+					//file descriptor of the actual file to be saved in appropriate package
+					File dest = new File(newAbsolutePath);
+					// If the destination directory does not exist, create it and necessary parent directories
+					File destDir = dest.getParentFile();
+					if (destDir.exists() == false)
+					{
+						boolean success = destDir.mkdirs();
+						if (!success)
+						{
+							throw new Exception("Destination folders could not be created");
+						}
+					}
+					//move file from temp dir to the actual dir
+					boolean success = uploadedFile.renameTo(dest);
+					if(success == false)
+					{
+						throw new Exception("File could not be moved :: ");
+					}
+					//update database
+					//get dir id
+					int dirId = getDirectoryId(rootDir);
+					//get timestamp
+					Timestamp fs_lastModified = new Timestamp(dest.lastModified());
+					//insert file
+					Database.insertPipefile(dirId, ServerUtils.parseFile(dest), fs_lastModified);
 				}
-				
-				//move file from temp dir to the actual dir
-				boolean success = uploadedFile.renameTo(dest);
-				//out.println("<br>move the file to " + dest.getAbsolutePath());
-				if(success == false) {
-					throw new Exception("File could not be moved");
-				}
-				
-				//update database
-				//get dir id
-				int dirId = getDirectoryId(rootDir);
-				//get timestamp
-				Timestamp fs_lastModified = new Timestamp(dest.lastModified());
-				
-				//insert entry in database
-				Database.insertPipefile(dirId, ServerUtils.parseFile(dest), fs_lastModified);
+			}
+			catch ( Exception e )
+			{
+				res.sendError( HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+				"An error occurred while creating the file = " + e.getMessage() );
 			}
 		}
-		catch(Exception e)   
+		else
 		{
-			System.out.println("Exception Due to"+e);   
-			e.printStackTrace();   
+		res.sendError( HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE,
+		"Request contents type is not supported by the servlet = " + r);
 		}
 		// If uploading from a URL
-		  // Get the file from the URL
-		  // Add it to the filesystem
-		  // Update the database
+		// Get the file from the URL
+		// Add it to the filesystem
+		// Update the database
 		// If uploading a folder or files
-		  // For each file
-		    // Add it to the filesystem
-		    // Update the database
+		// For each file
+		// Add it to the filesystem
+		// Update the database
 	}
 	public void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException
 	{
