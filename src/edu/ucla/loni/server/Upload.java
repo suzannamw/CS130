@@ -87,7 +87,6 @@ public class Upload extends HttpServlet//extends UploadAction
 	
 	public void doPost(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException
 	{
-		File uploadedFile;
 		String rootDir = "";
 		if ( ServletFileUpload.isMultipartContent( req ) )
 		{
@@ -193,7 +192,7 @@ public class Upload extends HttpServlet//extends UploadAction
 		else
 		{
 		res.sendError( HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE,
-		"Request contents type is not supported by the servlet = " + r);
+		"Request contents type is not supported by the servlet = ");
 		}
 		// If uploading from a URL
 		// Get the file from the URL
