@@ -14,12 +14,14 @@ import java.util.LinkedHashSet;
 
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
+import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.http.client.URL;
 
 import com.google.gwt.regexp.shared.MatchResult;
 import com.google.gwt.regexp.shared.RegExp;
 import com.google.gwt.regexp.shared.SplitResult;
 
+import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
@@ -44,6 +46,7 @@ import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
 import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
 import com.smartgwt.client.widgets.form.fields.FormItem;
+import com.smartgwt.client.widgets.form.fields.HiddenItem;
 import com.smartgwt.client.widgets.form.fields.StaticTextItem;
 import com.smartgwt.client.widgets.form.fields.TextAreaItem;
 import com.smartgwt.client.widgets.form.fields.TextItem;
@@ -1489,9 +1492,21 @@ public class ServerLibraryManager implements EntryPoint {
 		final DynamicForm uploadForm = new DynamicForm();
 		uploadForm.setSize("54px", "147px");
 		uploadForm.setEncoding(Encoding.MULTIPART);			//need to remain to work corectly
-		final UploadItem fileItem = new UploadItem("image");		//need to remain to work corectly
+		//
+		final UploadItem fileItem = new UploadItem("theMostUniqueName");//need to remain to work corectly
 		uploadForm.setAction(GWT.getModuleBaseURL()+"upload");		//need to remain to work corectly
-		IButton uploadButton = new IButton("Attachment");
+		//
+		TextItem nameLib = new TextItem("specify name of library : ");
+		TextItem url_addrs = new TextItem("specify addresses of URLs : ");
+		//
+		Scheduler.get().scheduleDeferred(new Command(){
+			@Override
+			public void execute(){
+				enableUpload();		//FROM :: http://forums.smartclient.com/showthread.php?t=16007
+			}
+		});
+		//
+		IButton uploadButton = new IButton("Send");
 	        uploadButton.addClickHandler(new com.smartgwt.client.widgets.events.ClickHandler()
 	        {
 	            @Override
@@ -1500,9 +1515,17 @@ public class ServerLibraryManager implements EntryPoint {
 	                uploadForm.submitForm();				//need to remain to work corectly
 	            }
 	        });
-		uploadForm.setItems(fileItem);					//need to remain to work corectly
+		uploadForm.setItems(nameLib, url_addrs, fileItem);		//need to remain to work corectly
 		workarea.setMembers(uploadForm, uploadButton);
 	}
+	
+	//FROM :: http://forums.smartclient.com/showthread.php?t=16007
+	//Allows making multiple selection of files
+	private native void enableUpload() /*-{
+	var newAttr= document.createAttribute('multiple');
+	newAttr.nodeValue='multiple'; 
+	$wnd.document.getElementsByName('theMostUniqueName')[0].setAttributeNode(newAttr); 
+}-*/;
 	
 	////////////////////////////////////////////////////////////
 	// Private Functions - Workarea - Home
