@@ -24,6 +24,7 @@ import com.google.gwt.regexp.shared.SplitResult;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
+import com.google.gwt.user.client.ui.NamedFrame;
 
 import com.smartgwt.client.data.Record;
 import com.smartgwt.client.types.Alignment;
@@ -1493,7 +1494,14 @@ public class ServerLibraryManager implements EntryPoint {
 		uploadForm.setSize("54px", "147px");
 		uploadForm.setEncoding(Encoding.MULTIPART);			//need to remain to work corectly
 		//
+		NamedFrame frame = new NamedFrame("uploadTarget");
+		//frame.setWidth("1px");
+		//frame.setHeight("1px");
+		frame.setVisible(true);
+		uploadForm.setTarget("uploadTarget");
+		//
 		final UploadItem fileItem = new UploadItem("theMostUniqueName");//need to remain to work corectly
+		fileItem.setDefaultValue("");
 		uploadForm.setAction(GWT.getModuleBaseURL()+"upload");		//need to remain to work corectly
 		//
 		TextItem nameLib = new TextItem("specify name of library : ");
@@ -1517,6 +1525,7 @@ public class ServerLibraryManager implements EntryPoint {
 	        });
 		uploadForm.setItems(nameLib, url_addrs, fileItem);		//need to remain to work corectly
 		workarea.setMembers(uploadForm, uploadButton);
+		workarea.addMember(frame);
 	}
 	
 	//FROM :: http://forums.smartclient.com/showthread.php?t=16007
