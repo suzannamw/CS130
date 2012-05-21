@@ -110,18 +110,81 @@ public class Upload extends HttpServlet//extends UploadAction
 						if( item.getFieldName().compareTo("specify name of library :") == 0 )
 						{
 							rootDir = item.getString();
-							res.getWriter().println("rootDIR = " + rootDir);
 						}
 						else if( item.getFieldName().compareTo("specify addresses of URLs :") == 0 )
 						{
-							res.getWriter().println(item.getString());
+							if( item.getString().compareTo("") == 0 )
+                            					continue;
+							List<String> ls = new ArrayList<String>();
+							int j = 0, i = 0;
+							String str_of_urls = item.getString();
+							boolean found_start = false, found_end = false;
+							for( i = 0; i < str_of_urls.length(); i++ )
+							{
+								if( str_of_urls.charAt(i) == ' ' )
+								{
+									if( found_start == false )
+									{
+										j++;
+									}
+									else
+									{
+										if( found_end == false )
+										{
+											found_end = true;
+											ls.add(str_of_urls.substring(j, i));
+										}
+										j = i + 1;
+									}
+									continue;
+								}
+								else if( str_of_urls.charAt(i) == ';' )
+								{
+									if( found_end == false )
+									{
+										ls.add(str_of_urls.substring(j, i));
+									}
+									j = i + 1;
+									found_end = false;
+									found_start = false;
+								}
+								else
+									found_start = true;
+							}
+							if( j < i && found_start == true )
+								ls.add(str_of_urls.substring(j, i));
+				                        BufferedInputStream bis = null;
+				                        BufferedOutputStream bos = null;
+				                        for( String urlstr : ls )
+				                        {
+						        	try
+						                {
+						                	URL url = new URL(urlstr);
+						                        URLConnection urlc = url.openConnection();
+						                        bis = new BufferedInputStream(urlc.getInputStream());
+						                        bos = new BufferedOutputStream(new FileOutputStream(temp_dir + File.separatorChar + ServerUtils.extractNameFromURL(urlstr)));
+						                        IOUtils.copy(bis, bos);
+						                }
+						                catch(Exception e)
+						                {
+						                       	res.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "ERROR :: " + e.getMessage());
+						                       	return;
+						                }
+						                finally
+						                {
+						                	if (bis != null)
+						                        	bis.close();
+						                        if (bos != null)
+						                                bos.close();
+						                }
+				                        }
 						}
 						continue;
 					}
-					else
-					{
-						res.getWriter().println("FieldName = " + item.getFieldName() + " , FileName = " + item.getName() + " , size = " + item.getSize());
-					}
+					if( item.getName() == null || item.getName().compareTo("") == 0 )
+		                	{
+		                    		continue;
+		                	}
 					String fileName = item.getName();
 					File uploadedFile = new File( temp_dir, fileName );
 					if ( uploadedFile.createNewFile() )
@@ -131,7 +194,7 @@ public class Upload extends HttpServlet//extends UploadAction
 					}
 					else
 					{
-						throw new IOException( "The file already exists" );
+						res.getWriter().println("Error :: the file already exists.")
 					}
 					//analyze XML of this file
 					Pipefile pipe = ServerUtils.parseFile(uploadedFile);
@@ -151,7 +214,7 @@ public class Upload extends HttpServlet//extends UploadAction
 						rootDir = Database.getRootDir();
 						if( rootDir == "" )
 						{
-							throw new IOException("rootDir has not been found.");
+							res.getWriter().println("error :: rootDir has not been found.");
 						}
 					}
 					newAbsolutePath = rootDir + newAbsolutePath;
@@ -165,14 +228,14 @@ public class Upload extends HttpServlet//extends UploadAction
 						boolean success = destDir.mkdirs();
 						if (!success)
 						{
-							throw new Exception("Destination folders could not be created");
+							res.getWriter().println("Destination folders could not be created.");
 						}
 					}
 					//move file from temp dir to the actual dir
 					boolean success = uploadedFile.renameTo(dest);
 					if(success == false)
 					{
-						throw new Exception("File could not be moved :: ");
+						res.getWriter().println("File could not be moved.");
 					}
 					//update database
 					//get dir id
@@ -185,14 +248,12 @@ public class Upload extends HttpServlet//extends UploadAction
 			}
 			catch ( Exception e )
 			{
-				res.sendError( HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-				"An error occurred while creating the file = " + e.getMessage() );
+				res.getWriter().println("Error occurred while creating file. Error Message : " + e.getMessage());
 			}
 		}
 		else
 		{
-		res.sendError( HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE,
-		"Request contents type is not supported by the servlet = ");
+			res.getWriter().println("Requtes cotents type is not supported by the servlet.");
 		}
 		// If uploading from a URL
 		// Get the file from the URL
