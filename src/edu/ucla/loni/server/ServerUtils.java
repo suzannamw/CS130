@@ -12,6 +12,22 @@ import org.jdom2.output.XMLOutputter;
 import edu.ucla.loni.shared.*;
 
 public class ServerUtils {
+	/**
+	* essentially a duplicate of function below (i.e. extractFileName) with exception that 
+	* this function extracts name from string that could have window's or unix separators.
+	* It became esuful for getting name of urls
+	*/
+	public static String extractNameFromURL(String s){
+		String res = "";
+		for( int i = s.length() - 1; i >= 0; i-- ){
+			if( (s.charAt(i) == File.separatorChar) || (s.charAt(i) == '/') ) {
+				res = s.substring(i + 1, s.length());
+				break;
+			}
+		}
+		return res;
+	}
+	
 	/**  
 	 * given an absolute path string, this function attempts to isolate actual name of file
 	 * @param s - absolute path of file
