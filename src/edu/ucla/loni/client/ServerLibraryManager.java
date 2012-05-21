@@ -24,7 +24,12 @@ import com.google.gwt.regexp.shared.SplitResult;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
-import com.google.gwt.user.client.ui.NamedFrame;
+import com.google.gwt.user.client.ui.FileUpload;
+import com.google.gwt.user.client.ui.FormPanel;
+import com.google.gwt.user.client.ui.FormPanel.SubmitCompleteEvent;
+import com.google.gwt.user.client.ui.FormPanel.SubmitEvent;
+import com.google.gwt.user.client.ui.TextBox;
+import com.google.gwt.user.client.ui.VerticalPanel;
 
 import com.smartgwt.client.data.Record;
 import com.smartgwt.client.types.Alignment;
@@ -35,8 +40,6 @@ import com.smartgwt.client.types.VerticalAlignment;
 import com.smartgwt.client.util.SC;
 
 import com.smartgwt.client.widgets.IButton;
-import com.smartgwt.client.types.Encoding;
-import com.smartgwt.client.widgets.form.fields.UploadItem;
 
 import com.smartgwt.client.widgets.events.ClickEvent;  
 import com.smartgwt.client.widgets.events.ClickHandler;
@@ -47,7 +50,6 @@ import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
 import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
 import com.smartgwt.client.widgets.form.fields.FormItem;
-import com.smartgwt.client.widgets.form.fields.HiddenItem;
 import com.smartgwt.client.widgets.form.fields.StaticTextItem;
 import com.smartgwt.client.widgets.form.fields.TextAreaItem;
 import com.smartgwt.client.widgets.form.fields.TextItem;
@@ -1490,42 +1492,73 @@ public class ServerLibraryManager implements EntryPoint {
 		uploader.setServletPath(uploader.getServletPath() + "?root=" + URL.encode(rootDirectory));
 		
 		workarea.addMember(uploader);*/
-		final DynamicForm uploadForm = new DynamicForm();
-		uploadForm.setSize("54px", "147px");
-		uploadForm.setEncoding(Encoding.MULTIPART);			//need to remain to work corectly
-		//
-		NamedFrame frame = new NamedFrame("uploadTarget");
-		//frame.setWidth("1px");
-		//frame.setHeight("1px");
-		frame.setVisible(true);
-		uploadForm.setTarget("uploadTarget");
-		//
-		final UploadItem fileItem = new UploadItem("theMostUniqueName");//need to remain to work corectly
-		fileItem.setDefaultValue("");
-		uploadForm.setAction(GWT.getModuleBaseURL()+"upload");		//need to remain to work corectly
-		//
-		TextItem nameLib = new TextItem("specify name of library : ");
-		TextItem url_addrs = new TextItem("specify addresses of URLs : ");
-		//
+		final DynamicForm smartgwt_uploadForm = new DynamicForm();
+		final FormPanel gwt_uploadForm = new FormPanel();
+		
+		VerticalPanel panel = new VerticalPanel();
+		gwt_uploadForm.setWidget(panel);
+		
+		gwt_uploadForm.setEncoding(FormPanel.ENCODING_MULTIPART);
+		gwt_uploadForm.setMethod(FormPanel.METHOD_POST);
+
+		FileUpload fileItem = new FileUpload();	//gwt widget :: need it since it unlike its smartgwt counterpart provides submitCompleteHandler
+		fileItem.setName("theMostUniqueName");
+		panel.add(fileItem);
+		gwt_uploadForm.addSubmitCompleteHandler(new FormPanel.SubmitCompleteHandler() {
+			public void onSubmitComplete(SubmitCompleteEvent event) {
+				if( event.getResults() == "" )
+				{
+					error("success");	//can put anything that needs to be triggered when file will get uploaded
+				}
+				else
+				{
+					error("ERROR :: " + event.getResults());	//same idea, just for the case when things go wrong
+				}
+			}
+		});
+		gwt_uploadForm.setAction(GWT.getModuleBaseURL()+"upload");		//need to remain to work corectly
+		//initializing controls that will get displayed (pretty much only smartgwt controls, may be except for FileUpload)  
+		final TextItem smartgwt_nameLib = new TextItem("specify name of library : ");
+		final TextBox gwt_nameLib = new TextBox();
+		gwt_nameLib.setName(smartgwt_nameLib.getName());
+		gwt_nameLib.setVisible(false);
+		panel.add(gwt_nameLib);	//no need to display gwt controls, they are needed only to interface with FileUpload, since apparently gwt and smartgwt are hard to mix...
+		final TextItem smartgwt_url_addrs = new TextItem("specify addresses of URLs : ");
+		final TextBox gwt_url_addrs = new TextBox();
+	        gwt_url_addrs.setName(smartgwt_url_addrs.getName());
+	        gwt_url_addrs.setVisible(false);
+		panel.add(gwt_url_addrs);
+		
+		gwt_uploadForm.addSubmitHandler(new FormPanel.SubmitHandler() {
+			public void onSubmit(SubmitEvent event) {
+		    		gwt_nameLib.setValue(smartgwt_nameLib.getValueAsString());
+		    		gwt_url_addrs.setValue(smartgwt_url_addrs.getValueAsString());
+		      	}
+		});
+		
 		Scheduler.get().scheduleDeferred(new Command(){
 			@Override
 			public void execute(){
 				enableUpload();		//FROM :: http://forums.smartclient.com/showthread.php?t=16007
 			}
 		});
-		//
+		
 		IButton uploadButton = new IButton("Send");
 	        uploadButton.addClickHandler(new com.smartgwt.client.widgets.events.ClickHandler()
 	        {
-	            @Override
-	            public void onClick(
-	                    com.smartgwt.client.widgets.events.ClickEvent event) {
-	                uploadForm.submitForm();				//need to remain to work corectly
-	            }
+	        	@Override
+	        	public void onClick(
+	                com.smartgwt.client.widgets.events.ClickEvent event) {
+		            	//all this trouble just because gwt FileUpload has one critical advantage over similarly
+		            	//functioning smartgwt counterpart (UploadItem), namely gwt countrol has submitCompleteHandler
+		            	//which smartgwt does not have... (smartgwt appears not so smart after all)
+	            		gwt_uploadForm.submit();
+	             	}
 	        });
-		uploadForm.setItems(nameLib, url_addrs, fileItem);		//need to remain to work corectly
-		workarea.setMembers(uploadForm, uploadButton);
-		workarea.addMember(frame);
+		smartgwt_uploadForm.setItems(smartgwt_nameLib, smartgwt_url_addrs);
+		workarea.addMember(smartgwt_uploadForm);
+		workarea.addMember(gwt_uploadForm);
+		workarea.addMember(uploadButton);
 	}
 	
 	//FROM :: http://forums.smartclient.com/showthread.php?t=16007
