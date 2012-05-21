@@ -2,6 +2,7 @@ package edu.ucla.loni.server;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.List;
 
 import org.jdom2.Document;
@@ -64,10 +65,7 @@ public class ServerUtils {
 		return extractDirName(extractDirName(extractDirName(abspath)));
 	}
 	
-	public static String newAbsolutePath(String oldAbsolutePath, String packageName, String type){
-		String root = extractRootDir(oldAbsolutePath);	
-		String filename = extractFileName(oldAbsolutePath);
-		
+	public static String newAbsolutePath(String root, String packageName, String type, String filename){		
 		String newAbsolutePath = root +
 			File.separatorChar + packageName.replace(" " , "_") +
 			File.separatorChar + type +
@@ -82,6 +80,16 @@ public class ServerUtils {
 	public static Document readXML(File pipe) throws Exception{
 		SAXBuilder builder = new SAXBuilder();
 		Document doc = (Document) builder.build(pipe);
+		
+		return doc;
+	}
+	
+	/**
+	 * Parse an XML file into a Document
+	 */
+	public static Document readXML(InputStream stream) throws Exception{
+		SAXBuilder builder = new SAXBuilder();
+		Document doc = (Document) builder.build(stream);
 		
 		return doc;
 	}
@@ -153,11 +161,9 @@ public class ServerUtils {
 	/**
 	 * Parses a .pipe into a Pipefile
 	 */
-	public static Pipefile parseFile(File file){
+	public static Pipefile parse(Document doc){
 		try {
 			Pipefile pipe = new Pipefile();
-			
-			Document doc = readXML(file);
 			Element main = getMainElement(doc);
 			
 			String mainName = main.getName();
@@ -171,9 +177,7 @@ public class ServerUtils {
 				throw new Exception("Pipefile has unknown type");
 			}
 			
-			// General properties
-			pipe.absolutePath = file.getAbsolutePath();
-			
+			// General Properties
 			pipe.name = main.getAttributeValue("name", "");
 			pipe.packageName = main.getAttributeValue("package", "");
 			pipe.description = main.getAttributeValue("description", "");
@@ -204,8 +208,21 @@ public class ServerUtils {
 			}
 			
 			return pipe;
-		} 
-		catch (Exception e){
+		} catch (Exception e){
+			return null;
+		}
+	}
+	
+	public static Pipefile parse(File file){
+		try {
+			Document doc = readXML(file);
+			Pipefile pipe = parse(doc);
+			
+			if (pipe != null){
+				pipe.absolutePath = file.getAbsolutePath();
+			}
+			return pipe;
+		} catch (Exception e){
 			return null;
 		}
 	}

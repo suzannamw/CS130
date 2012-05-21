@@ -35,6 +35,22 @@ public class Database {
 	// Directory
 	////////////////////////////////////////////////////////////
 	
+	/** 
+	 * Gets the directoryID of the root directory by selecting it from the database,
+	 * inserts the directory into the database if needed
+	 * 
+	 * @param absolutePath absolute path of the root directory  
+	 * @return directoryID of the root directory
+	 */
+	public static int selectOrInsertDirectory(String absolutePath) throws Exception{
+		int ret = Database.selectDirectory(absolutePath);
+		if(ret == -1){
+			Database.insertDirectory(absolutePath);
+			ret = Database.selectDirectory(absolutePath);
+		}
+		return ret;
+	}
+	
 	public static int selectDirectory(String absolutePath) throws Exception{
 		Connection con = getDatabaseConnection();
 		
@@ -50,34 +66,6 @@ public class Database {
 			return rs.getInt(1);
 		} else {
 			return -1;
-		}
-	}
-	
-	/**
-	 *	possibly subject for later removal
-	 *  currently used inside Upload.java
-	 *  this function returns absolutePath to the root directory
-	 *  where the transferred file would be placed inside the server
-	 *  
-	 *  Currently this function make NOT a good assumption that
-	 *  there is only 1 root dir of interest...
-	 *  
-	 *  Possible fix :: force user to select which library will be used 
-	 */
-	public static String getRootDir() throws Exception
-	{
-		Connection con = getDatabaseConnection();
-		
-		PreparedStatement stmt = con.prepareStatement(
-			"SELECT * " +
-			"FROM directories;"		
-		);
-		ResultSet rs = stmt.executeQuery();
-		
-		if (rs.next()){
-			return rs.getString(2);
-		} else {
-			return "";
 		}
 	}
 	

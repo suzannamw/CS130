@@ -1,11 +1,6 @@
 package edu.ucla.loni.client;
 
 import edu.ucla.loni.shared.*;
-import gwtupload.client.IUploadStatus.Status;
-import gwtupload.client.IUploader;
-import gwtupload.client.IUploader.UploadedInfo;
-import gwtupload.client.MultiUploader;
-import gwtupload.client.SingleUploader;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,6 +23,9 @@ import com.google.gwt.user.client.ui.FileUpload;
 import com.google.gwt.user.client.ui.FormPanel;
 import com.google.gwt.user.client.ui.FormPanel.SubmitCompleteEvent;
 import com.google.gwt.user.client.ui.FormPanel.SubmitEvent;
+import com.google.gwt.user.client.ui.Grid;
+import com.google.gwt.user.client.ui.Hidden;
+import com.google.gwt.user.client.ui.TextArea;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
 
@@ -1466,75 +1464,53 @@ public class ServerLibraryManager implements EntryPoint {
 	// Private Functions - Workarea - Import
 	////////////////////////////////////////////////////////////
 	
-	  private IUploader.OnFinishUploaderHandler onFinishUploaderHandler = new IUploader.OnFinishUploaderHandler() {
-		  public void onFinish(IUploader uploader) {
-			  if (uploader.getStatus() == Status.SUCCESS) {
-				  UploadedInfo info = uploader.getServerInfo();
-				  success("Successfully Uploaded " + info.name);
-			  }
-		  }
-	  };
-	
 	/**
 	 *  Sets workarea to an import form
 	 */
 	private void importForm(){
-		// TODO
-		// Allow user to select files/folders
-		//   Checkbox for recursive
-		// Allow user to supply a url
-		// Import button
-		//   On click, import the files, go back to basic instructions
 		clearWorkarea();
 		
-		/*SingleUploader uploader = new SingleUploader();
-		uploader.addOnFinishUploadHandler(onFinishUploaderHandler);
-		uploader.setServletPath(uploader.getServletPath() + "?root=" + URL.encode(rootDirectory));
+		Grid grid = new Grid(5,2);
 		
-		workarea.addMember(uploader);*/
-		final DynamicForm smartgwt_uploadForm = new DynamicForm();
-		final FormPanel gwt_uploadForm = new FormPanel();
+		final FormPanel uploadForm = new FormPanel();
+		uploadForm.setWidget(grid);
+		uploadForm.setEncoding(FormPanel.ENCODING_MULTIPART);
+		uploadForm.setMethod(FormPanel.METHOD_POST);
+		uploadForm.setAction(GWT.getModuleBaseURL()+"upload");
 		
-		VerticalPanel panel = new VerticalPanel();
-		gwt_uploadForm.setWidget(panel);
+		// Root Directory
+		Hidden root = new Hidden();
+		root.setName("root");
+		root.setValue(rootDirectory);
 		
-		gwt_uploadForm.setEncoding(FormPanel.ENCODING_MULTIPART);
-		gwt_uploadForm.setMethod(FormPanel.METHOD_POST);
-
-		FileUpload fileItem = new FileUpload();	//gwt widget :: need it since it unlike its smartgwt counterpart provides submitCompleteHandler
+		grid.setWidget(0, 0, new Label("Root"));
+		grid.setWidget(0, 1, new Label(rootDirectory));
+		grid.setWidget(4, 1, root);
+		
+		// Package Name
+		final TextBox packageName = new TextBox();
+		packageName.setName("packageName");
+		packageName.setWidth("300px");
+		
+		grid.setWidget(1, 0, new Label("Package"));
+		grid.setWidget(1, 1, packageName);
+		
+		// Upload local file
+		FileUpload fileItem = new FileUpload();
 		fileItem.setName("theMostUniqueName");
-		panel.add(fileItem);
-		gwt_uploadForm.addSubmitCompleteHandler(new FormPanel.SubmitCompleteHandler() {
-			public void onSubmitComplete(SubmitCompleteEvent event) {
-				if( event.getResults() == "" )
-				{
-					error("success");	//can put anything that needs to be triggered when file will get uploaded
-				}
-				else
-				{
-					error("ERROR :: " + event.getResults());	//same idea, just for the case when things go wrong
-				}
-			}
-		});
-		gwt_uploadForm.setAction(GWT.getModuleBaseURL()+"upload");		//need to remain to work corectly
-		//initializing controls that will get displayed (pretty much only smartgwt controls, may be except for FileUpload)  
-		final TextItem smartgwt_nameLib = new TextItem("specify name of library : ");
-		final TextBox gwt_nameLib = new TextBox();
-		gwt_nameLib.setName(smartgwt_nameLib.getName());
-		gwt_nameLib.setVisible(false);
-		panel.add(gwt_nameLib);	//no need to display gwt controls, they are needed only to interface with FileUpload, since apparently gwt and smartgwt are hard to mix...
-		final TextItem smartgwt_url_addrs = new TextItem("specify addresses of URLs : ");
-		final TextBox gwt_url_addrs = new TextBox();
-	        gwt_url_addrs.setName(smartgwt_url_addrs.getName());
-	        gwt_url_addrs.setVisible(false);
-		panel.add(gwt_url_addrs);
+		fileItem.setHeight("50px");
 		
-		gwt_uploadForm.addSubmitHandler(new FormPanel.SubmitHandler() {
-			public void onSubmit(SubmitEvent event) {
-		    		gwt_nameLib.setValue(smartgwt_nameLib.getValueAsString());
-		    		gwt_url_addrs.setValue(smartgwt_url_addrs.getValueAsString());
-		      	}
-		});
+		grid.setWidget(2, 0, new Label("Upload Local Files"));
+		grid.setWidget(2, 1, fileItem);
+		
+		// Upload URLs
+		final TextArea urls = new TextArea();
+		urls.setName("urls");
+		urls.setWidth("300px");
+		urls.setHeight("100px");
+		
+		grid.setWidget(3, 0, new Label("Upload From URLs"));
+		grid.setWidget(3, 1, urls);
 		
 		Scheduler.get().scheduleDeferred(new Command(){
 			@Override
@@ -1543,31 +1519,35 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
 		
-		IButton uploadButton = new IButton("Send");
-	        uploadButton.addClickHandler(new com.smartgwt.client.widgets.events.ClickHandler()
-	        {
-	        	@Override
-	        	public void onClick(
-	                com.smartgwt.client.widgets.events.ClickEvent event) {
-		            	//all this trouble just because gwt FileUpload has one critical advantage over similarly
-		            	//functioning smartgwt counterpart (UploadItem), namely gwt countrol has submitCompleteHandler
-		            	//which smartgwt does not have... (smartgwt appears not so smart after all)
-	            		gwt_uploadForm.submit();
-	             	}
-	        });
-		smartgwt_uploadForm.setItems(smartgwt_nameLib, smartgwt_url_addrs);
-		workarea.addMember(smartgwt_uploadForm);
-		workarea.addMember(gwt_uploadForm);
-		workarea.addMember(uploadButton);
+		Button uploadButton = new Button("Send");
+        uploadButton.addClickHandler(new ClickHandler(){
+        	public void onClick(ClickEvent event) {
+        		uploadForm.submit();
+            }
+        });
+        grid.setWidget(4, 0, uploadButton);
+        
+		uploadForm.addSubmitCompleteHandler(new FormPanel.SubmitCompleteHandler() {
+			public void onSubmitComplete(SubmitCompleteEvent event) {
+				if( event.getResults().length() == 0) {
+					success("Successfully uploaded files");
+				}
+				else {
+					error("ERROR :: " + event.getResults());
+				}
+			}
+		});
+        
+		workarea.addMember(uploadForm);
 	}
 	
-	//FROM :: http://forums.smartclient.com/showthread.php?t=16007
-	//Allows making multiple selection of files
+	// FROM :: http://forums.smartclient.com/showthread.php?t=16007
+	// Allows making multiple selection of files
 	private native void enableUpload() /*-{
-	var newAttr= document.createAttribute('multiple');
-	newAttr.nodeValue='multiple'; 
-	$wnd.document.getElementsByName('theMostUniqueName')[0].setAttributeNode(newAttr); 
-}-*/;
+		var newAttr= document.createAttribute('multiple');
+		newAttr.nodeValue='multiple'; 
+		$wnd.document.getElementsByName('theMostUniqueName')[0].setAttributeNode(newAttr); 
+	}-*/;
 	
 	////////////////////////////////////////////////////////////
 	// Private Functions - Workarea - Home

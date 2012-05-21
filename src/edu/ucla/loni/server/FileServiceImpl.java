@@ -38,22 +38,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	    return files;
 	}
 	
-	/** 
-	 * Gets the directoryID of the root directory by selecting it from the database,
-	 * inserts the directory into the database if needed
-	 * 
-	 * @param absolutePath absolute path of the root directory  
-	 * @return directoryID of the root directory
-	 */
-	private int getDirectoryId(String absolutePath) throws Exception{
-		int ret = Database.selectDirectory(absolutePath);
-		if(ret == -1){
-			Database.insertDirectory(absolutePath);
-			ret = Database.selectDirectory(absolutePath);
-		}
-		return ret;
-	}
-	
 	/**
 	 *  Remove files from the database in the case that they were deleted
 	 */
@@ -75,7 +59,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	private void updateDatabase(File rootDir) throws Exception {		
 		// Clean the database
-		int dirId = getDirectoryId(rootDir.getAbsolutePath());	
+		int dirId = Database.selectOrInsertDirectory(rootDir.getAbsolutePath());	
 		cleanDatabase(dirId);
 		
 		// Update all files
@@ -103,7 +87,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// If we need to update or insert a row
 		    if (update || insert){			    	
-		    	Pipefile pipe = ServerUtils.parseFile(file);
+		    	Pipefile pipe = ServerUtils.parse(file);
 				
 				if (insert){
 					Database.insertPipefile(dirId, pipe, fs_lastModified);
@@ -142,16 +126,18 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param packageName absolute path of the package
 	 */
 	private void copyFile(String root, Pipefile pipe, String packageName) throws Exception {
-		// Get old and new absolute path directory
+		// Source
 		String oldAbsolutePath = pipe.absolutePath;
-		String newAbsolutePath = ServerUtils.newAbsolutePath(pipe.absolutePath, packageName, pipe.type);
-		
 		File src = new File(oldAbsolutePath);
-		File dest = new File(newAbsolutePath);
 		
 		// If the source does not exist
 		if (!src.exists()) return;
 		
+		// Destination
+		String filename = src.getName();
+		String newAbsolutePath = ServerUtils.newAbsolutePath(root, packageName, pipe.type, filename);
+		File dest = new File(newAbsolutePath);
+
 		// If the destination directory does not exist, create it and necessary parent directories
 		File destDir = dest.getParentFile();
 		if (destDir.exists() == false){
@@ -186,7 +172,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		ServerUtils.writeXML(dest, doc);
 		
 		// Update Database
-		int dirId = getDirectoryId(root);
+		int dirId = Database.selectOrInsertDirectory(root);
 		Timestamp modified = new Timestamp(dest.lastModified());
 		Database.insertPipefile(dirId, newPipe, modified);
 	}
@@ -198,15 +184,17 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @throws Exception 
 	 */
 	public void moveFile(String root, Pipefile pipe, String packageName) throws Exception{		
-		// Get old and new absolute path directory
+		// Source
 		String oldAbsolutePath = pipe.absolutePath;
-		String newAbsolutePath = ServerUtils.newAbsolutePath(pipe.absolutePath, packageName, pipe.type);
-		
 		File src = new File(oldAbsolutePath);
-		File dest = new File(newAbsolutePath);
 		
 		// If the source does not exist
 		if (!src.exists()) return;
+		
+		// Destination
+		String filename = src.getName();
+		String newAbsolutePath = ServerUtils.newAbsolutePath(root, packageName, pipe.type, filename);
+		File dest = new File(newAbsolutePath);
 		
 		// If the destination directory does not exist, create it and necessary parent directories
 		File destDir = dest.getParentFile();
@@ -256,7 +244,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			if (rootDir.exists() && rootDir.isDirectory()){
 				updateDatabase(rootDir);
 				
-				int dirId = getDirectoryId(root);
+				int dirId = Database.selectOrInsertDirectory(root);
 				
 				return Database.selectPipefiles(dirId);
 			} else {
@@ -276,7 +264,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public Pipefile[] getSearchResults(String root, String query) throws Exception{
 		try {
-			int dirId = getDirectoryId(root); 
+			int dirId = Database.selectOrInsertDirectory(root); 
 			return Database.selectPipefilesSearch(dirId, query);
 		} 
 		catch (Exception e) {
