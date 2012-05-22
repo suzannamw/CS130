@@ -17,6 +17,7 @@ import com.google.gwt.regexp.shared.RegExp;
 import com.google.gwt.regexp.shared.SplitResult;
 
 import com.google.gwt.user.client.Command;
+import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.google.gwt.user.client.ui.FileUpload;
@@ -29,13 +30,12 @@ import com.google.gwt.user.client.ui.TextBox;
 
 import com.smartgwt.client.data.Record;
 import com.smartgwt.client.types.Alignment;
+import com.smartgwt.client.types.AnimationEffect;
 import com.smartgwt.client.types.KeyNames;
 import com.smartgwt.client.types.ListGridComponent;
 import com.smartgwt.client.types.SelectionAppearance;
 import com.smartgwt.client.types.VerticalAlignment;
 import com.smartgwt.client.util.SC;
-
-import com.smartgwt.client.widgets.IButton;
 
 import com.smartgwt.client.widgets.events.ClickEvent;  
 import com.smartgwt.client.widgets.events.ClickHandler;
@@ -604,7 +604,6 @@ public class ServerLibraryManager implements EntryPoint {
 
 		        public void onSuccess(Pipefile[] result) {
 		        	if (result != null) {
-		        		
 		        		LinkedHashSet<String> packageNames = new LinkedHashSet<String>();
 		        		for (Pipefile p : result){
 			        		pipes.put(p.absolutePath, p);
@@ -613,6 +612,9 @@ public class ServerLibraryManager implements EntryPoint {
 		        		
 		        		packages = new String[packageNames.size()];
 		        		packages = packageNames.toArray(packages);
+		        	} 
+		        	else {
+		        		SC.say("No pipefiles found in root directory");
 		        	}
 		        	
 		        	sortFullTree();
@@ -663,6 +665,8 @@ public class ServerLibraryManager implements EntryPoint {
 		    public void onSuccess(Void result){
 		    	success("Successfully updated " + pipe.name);
 		    	updateFullTree();
+		    	getGroups(false);
+		    	lastPipefile = pipe;
 		    }
 		});
 	}
@@ -788,13 +792,6 @@ public class ServerLibraryManager implements EntryPoint {
 		}
 		
 		Window.open(url, "downloadWindow", "");
-	}
-	
-	/**
-	 * Makes the HTTP request to upload
-	 */
-	private void uploadFiles(){
-		// TODO
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -1452,8 +1449,6 @@ public class ServerLibraryManager implements EntryPoint {
 		buttonRow.addMember(update);
 		buttonRow.addMember(cancel);
 		
-		// TODO, button to view all files that use this group
-		
 		workarea.addMember(title);
 		workarea.addMember(form);
 		workarea.addMember(buttonRow);
@@ -1469,7 +1464,13 @@ public class ServerLibraryManager implements EntryPoint {
 	private void importForm(){
 		clearWorkarea();
 		
-		Grid grid = new Grid(5,2);
+		// Title
+		Label title = new Label("Import File(s)");
+		title.setHeight(30);
+		title.setStyleName("workarea-title");
+		
+		// Uses GWT form components so we can submit in the background
+		Grid grid = new Grid(5,3);
 		
 		final FormPanel uploadForm = new FormPanel();
 		uploadForm.setWidget(grid);
@@ -1478,38 +1479,78 @@ public class ServerLibraryManager implements EntryPoint {
 		uploadForm.setAction(GWT.getModuleBaseURL()+"upload");
 		
 		// Root Directory
-		Hidden root = new Hidden();
-		root.setName("root");
-		root.setValue(rootDirectory);
+		Label rootLabel = new Label("Root Directory");
+		rootLabel.setHeight(30);
 		
-		grid.setWidget(0, 0, new Label("Root"));
-		grid.setWidget(0, 1, new Label(rootDirectory));
-		grid.setWidget(4, 1, root);
+		Label rootName = new Label(rootDirectory);
+		rootName.setHeight(30);
+		
+		Label rootDescription = new Label (
+			"The files will uploaded to the library specified by the root directory.<br/>" +
+			"If you have changed the root directory, click 'Import' again to update this page."
+		);
+		rootDescription.setHeight(30);
+		rootDescription.setWidth(500);
+		rootDescription.setStyleName("workarea-description");
+		
+		Hidden hRoot = new Hidden();
+		hRoot.setName("root");
+		hRoot.setValue(rootDirectory);
+		
+		grid.setWidget(0, 0, rootLabel);
+		grid.setWidget(0, 1, rootName);
+		grid.setWidget(0, 2, rootDescription);
+		grid.setWidget(4, 1, hRoot);
 		
 		// Package Name
+		Label packageLabel = new Label("Package");
+		packageLabel.setHeight(30);
+		
 		final TextBox packageName = new TextBox();
 		packageName.setName("packageName");
 		packageName.setWidth("300px");
 		
-		grid.setWidget(1, 0, new Label("Package"));
+		Label packageDescription = new Label (
+			"Set package to put all uploaded files into that package.<br/>" +
+			"If empty all files will be placed in the package specified in the file"
+		);
+		packageDescription.setHeight(30);
+		packageDescription.setWidth(500);
+		packageDescription.setStyleName("workarea-description");
+		
+		grid.setWidget(1, 0, packageLabel);
 		grid.setWidget(1, 1, packageName);
+		grid.setWidget(1, 2, packageDescription);
 		
 		// Upload local file
+		Label uploadLabel = new Label("Upload Local Files");
+		uploadLabel.setHeight(40);
+		
 		FileUpload fileItem = new FileUpload();
 		fileItem.setName("theMostUniqueName");
-		fileItem.setHeight("50px");
 		
-		grid.setWidget(2, 0, new Label("Upload Local Files"));
+		grid.setWidget(2, 0, uploadLabel);
 		grid.setWidget(2, 1, fileItem);
 		
 		// Upload URLs
+		Label urlLabel = new Label("Upload From URLs");
+		urlLabel.setHeight(40);
+		
 		final TextArea urls = new TextArea();
 		urls.setName("urls");
 		urls.setWidth("300px");
 		urls.setHeight("100px");
 		
-		grid.setWidget(3, 0, new Label("Upload From URLs"));
+		Label urlDescription = new Label (
+			"Enter a newline seperated list of urls."
+		);
+		urlDescription.setHeight(40);
+		urlDescription.setWidth(400);
+		urlDescription.setStyleName("workarea-description");
+		
+		grid.setWidget(3, 0, urlLabel);
 		grid.setWidget(3, 1, urls);
+		grid.setWidget(3, 2, urlDescription);
 		
 		Scheduler.get().scheduleDeferred(new Command(){
 			@Override
@@ -1537,6 +1578,7 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
         
+		workarea.addMember(title);
 		workarea.addMember(uploadForm);
 	}
 	
@@ -1610,6 +1652,14 @@ public class ServerLibraryManager implements EntryPoint {
 	 */
 	private void success(String msg){
 		message.setContents(msg);
+		message.animateShow(AnimationEffect.FADE);
+		
+		// Clear the message after 10 seconds
+	    new Timer() {
+	    	public void run() {
+	    		message.animateHide(AnimationEffect.FADE);
+	        }
+	    }.schedule(10000);
 	}
 	
 	////////////////////////////////////////////////////////////
