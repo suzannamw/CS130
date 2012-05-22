@@ -110,7 +110,7 @@ public class Upload extends HttpServlet {
 						}
 					}
 					// URLs					
-					if (item.isFormField() && item.getFieldName().equals("urls") && item.getString() != ""){
+					if (item.isFormField() && item.getFieldName().equals("urls") && item.getString().equals("") == false){
 						String urlListAsStr = item.getString();
 						String[] urlList = urlListAsStr.split("\n");
 						
