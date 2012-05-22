@@ -13,7 +13,6 @@
 
   <!-- Other module inherits                                      -->
   <inherits name="com.smartgwt.SmartGwt"/>
-  <inherits name="gwtupload.GWTUpload"/>
 
   <!-- Specify the app entry point class.                         -->
   <entry-point class='edu.ucla.loni.client.ServerLibraryManager'/>
