@@ -91,10 +91,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				
 				if (insert){
 					Database.insertPipefile(dirId, pipe, fs_lastModified);
+					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
 				} else {
 					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
 					Database.updatePipefile(pipe, fs_lastModified);
 				}
+				
+				updateGroupDependencies(1, pipe.fileId, pipe.access);
  		    }
 		}
 	}
@@ -117,6 +120,25 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// Delete file from database
 			Database.deletePipefile(pipe);
+		}
+	}
+	
+	private void updateGroupDependencies(int depType, int depId, String agentsStr) throws Exception{
+		Database.deleteGroupDependency(depType, depId);
+		
+		String[] agents = agentsStr.split(",");
+		for(String agent : agents){
+			// Trim whitespace
+			agent = agent.trim();
+			
+			if (GroupSyntax.isGroup(agent)){
+				String group = GroupSyntax.agentToGroup(agent);
+				int groupId = Database.selectGroupId(group);
+				
+				if (groupId != -1){
+					Database.insertGroupDependency(groupId, depType, depId);	
+				}
+			}
 		}
 	}
 	
@@ -294,6 +316,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			Timestamp modified = new Timestamp(file.lastModified());
 			Database.updatePipefile(pipe, modified);
 			
+			// Update Group Dependencies
+			updateGroupDependencies(1, pipe.fileId, pipe.access);
+			
 			// Write the access file
 			ServerUtils.writeAccessFile(root);
 		} 
@@ -390,9 +415,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			// Insert or update the group
 			if (group.groupId == -1){
 				Database.insertGroup(group);
+				group.groupId = Database.selectGroupId(group.name);
 			} else {
 				Database.updateGroup(group);
 			}
+			
+			// Update Group Dependences
+			updateGroupDependencies(0, group.groupId, group.users);
 			
 			// Write the access file
 			ServerUtils.writeAccessFile(root);

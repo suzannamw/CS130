@@ -313,13 +313,33 @@ public class Database {
 	public static Group[] selectGroups() throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"SELECT groupId, name, users, COUNT(fileId) " +
-			"FROM groups AS g LEFT JOIN groupPipefileConnections AS gpc ON g.groupId = gpc.groupId " +
+			"SELECT groupId, name, users, COUNT(depId) " +
+			"FROM groups AS g LEFT JOIN groupDependencies AS gd ON g.groupId = gd.groupId " +
 			"GROUP BY groupId"
 		);
 		ResultSet rs = stmt.executeQuery();
 		
 		return resultSetToGroupArray(rs);
+	}
+	
+	/**
+	 *  Select a group's id by name
+	 */
+	public static int selectGroupId(String name) throws Exception{
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"SELECT groupId " +
+			"FROM groups " +
+			"WHERE name = ?"
+		);
+		stmt.setString(1, name);
+		ResultSet rs = stmt.executeQuery();
+		
+		if (rs.next()){
+			return rs.getInt(1);
+		} else {
+			return -1;
+		}
 	}
 	
 	/**
@@ -386,16 +406,49 @@ public class Database {
 	////////////////////////////////////////////////////////////
 	
 	/**
-	 *  Insert a groupPipefileConnections
+	 * Inserts a group dependency such that the 
+	 * object specified by depType and depId is dependent 
+	 * on the definition of the group specified by groupId
+	 * 
+	 * @param groupId 
+	 * @param depType 0 for group, 1 for file
+	 * @param depId
+	 * @throws Exception
 	 */
-	public static void insertGroupPipefileConnection(int groupId, int fileId) throws Exception{
-		//TODO
+	public static void insertGroupDependency(int groupId, int depType, int depId) throws Exception{
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"INSERT INTO groupDependencies (groupId, depType, depId) " +
+			"VALUES (?, ?, ?)"
+		);
+		stmt.setInt(1, groupId);
+		stmt.setInt(2, depType);
+		stmt.setInt(3, depId);
+		
+		int inserted = stmt.executeUpdate();
+		
+		if (inserted != 1){
+			throw new Exception("Failed to insert row into 'groupDependencies' table");
+		}
 	}
 	
 	/**
-	 *  Delete all groupPipefileConnections associated with a file
+	 * Deletes all group dependencies for the 
+	 * object specified by depType and depId
+	 * 
+	 * @param depTyp 0 for group, 1 for file
+	 * @param depId
+	 * @throws Exception
 	 */
-	public static void deleteGroupPipefileConnections(int fileId) throws Exception{
-		//TODO
+	public static void deleteGroupDependency(int depType, int depId) throws Exception{
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"DELETE FROM groupDependencies " +
+			"WHERE depType = ? AND depId = ?" 		
+		);
+		stmt.setInt(1, depType);
+		stmt.setInt(2, depId);
+		
+		stmt.executeUpdate();
 	}
 }
