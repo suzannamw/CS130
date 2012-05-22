@@ -17,10 +17,12 @@ public class Pipefile implements Serializable {
 	public String access;
 	
 	// Type specific properties
-	public String values;		// For Data
-	public String formatType;	// For Data
-	public String location;		// For Modules
-	public String uri;			// For Modules and Workflows
+	public String values;			// For Data
+	public String valuesPrefix;		// For Data
+	public String formatType;		// For Data
+	public String location;			// For Modules
+	public String locationPrefix; 	// For Modules
+	public String uri;				// For Modules and Workflows
 	
 	public Pipefile(){
 		fileId = 0;

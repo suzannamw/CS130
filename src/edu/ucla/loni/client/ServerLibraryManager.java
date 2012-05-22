@@ -1120,6 +1120,12 @@ public class ServerLibraryManager implements EntryPoint {
 		tags.setName("tags");
 		tags.setWidth(width);
 		tags.setHint("Comma separated list");
+		
+		ComboBoxItem formatType = new ComboBoxItem();  
+        formatType.setTitle("Value Format Type");  
+        formatType.setType("comboBox");  
+        formatType.setName("formatType");
+        formatType.setValueMap("String", "Directory", "File", "Number");
 	
 		TextAreaItem values = new TextAreaItem();
 		values.setTitle("Values");
@@ -1127,16 +1133,21 @@ public class ServerLibraryManager implements EntryPoint {
 		values.setWidth(width);
 		values.setHint("Newline separated list<br/>"); 
 		
-		TextItem formatType = new TextItem();
-		formatType.setTitle("Format Type");
-		formatType.setName("formatType");
-		formatType.setWidth(width);
+		TextItem valuesPrefix = new TextItem();
+		valuesPrefix.setTitle("Values Prefix");
+		valuesPrefix.setName("valuesPrefix");
+		valuesPrefix.setWidth(width);
 		
 		TextItem location = new TextItem();
 		location.setTitle("Location");
 		location.setName("location");
 		location.setWidth(width);
 		//location.setHint("Prefix = "); 
+		
+		TextItem locationPrefix = new TextItem();
+		locationPrefix.setTitle("Location Prefix");
+		locationPrefix.setName("locationPrefix");
+		locationPrefix.setWidth(width);
 		
 		TextItem uri = new TextItem();
 		uri.setTitle("URI");
@@ -1159,7 +1170,8 @@ public class ServerLibraryManager implements EntryPoint {
 			}
 		});
 		
-		form.setFields(name, packageName, type, description, tags, location, uri, values, formatType, access, accessInfo);
+		form.setFields(name, packageName, type, description, tags, locationPrefix, 
+				location, uri, valuesPrefix, values, formatType, access, accessInfo);
 		form.setValue("name", pipe.name);
 		form.setValue("package", pipe.packageName);
 		form.setValue("type", pipe.type);
@@ -1171,6 +1183,7 @@ public class ServerLibraryManager implements EntryPoint {
 		if(pipe.type.equals("Data")){
 			//TODO: fix this stuff!!!!
 			String valString = "";
+			pipe.valuesPrefix = "";
 			RegExp split = RegExp.compile("\n", "m");
 			SplitResult vals = split.split(pipe.values);
 			RegExp re = RegExp.compile("(.*://.*/)?(.*)");
@@ -1178,28 +1191,38 @@ public class ServerLibraryManager implements EntryPoint {
 				MatchResult m = re.exec(vals.get(j));
 				if(m!= null){
 					valString += m.getGroup(2) + "\n";
+					pipe.valuesPrefix = m.getGroup(1);
 				}
 			}
+			form.setValue("valuesPrefix", pipe.valuesPrefix);
 			form.setValue("values", valString);
 			form.setValue("formatType", pipe.formatType);
 		}
 		else{
 			form.hideItem("values");
+			form.hideItem("valuesPrefix");
 			form.hideItem("formatType");
 		}
 		
 		final String loc;
-		RegExp re = RegExp.compile(".*://.*/(.*)");
+		RegExp re = RegExp.compile("(.*://.*/)(.*)");
 		MatchResult m = re.exec(pipe.location);
-		if(m!= null)
-			loc = m.getGroup(1); 
-		else
+		if(m!= null){
+			loc = m.getGroup(2); 
+			pipe.locationPrefix = m.getGroup(1);
+		}
+		else{
 			loc = "";
+			pipe.locationPrefix = "";
+		}
 		if(pipe.type.equals("Modules")){
+			form.setValue("locationPrefix", pipe.locationPrefix);
 			form.setValue("location", loc);
 		}
-		else
+		else{
 			form.hideItem("location");
+			form.hideItem("locationPrefix");
+		}
 		
 		if(pipe.type.equals("Modules") || pipe.type.equals("Groups"))
 			form.setValue("uri", pipe.uri);
@@ -1210,7 +1233,7 @@ public class ServerLibraryManager implements EntryPoint {
 		Button update = new Button("Update");
 		update.addClickHandler( new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				RegExp re = RegExp.compile("(.*://.*/)?(.*)");
+				//RegExp re = RegExp.compile("(.*://.*/)?(.*)");
 				pipe.name = form.getValueAsString("name");
 				pipe.packageName = form.getValueAsString("package");
 				pipe.type = form.getValueAsString("type");
@@ -1219,21 +1242,21 @@ public class ServerLibraryManager implements EntryPoint {
 				pipe.access = form.getValueAsString("access");
 				if(pipe.type.equals("Data")){
 					String valString = "";
+					pipe.valuesPrefix = form.getValueAsString("valuesPrefix");
 					RegExp split = RegExp.compile("\n", "m");
 					SplitResult vals = split.split(form.getValueAsString("values"));
-					MatchResult m = re.exec(pipe.values);
-					if(m !=null)
-						for (int j = 0; j<vals.length(); j++){
-							if(vals.get(j).length()==0)
-								continue;
-							valString += m.getGroup(1) + vals.get(j) +  "\n";
-						}
+					for (int j = 0; j<vals.length(); j++){
+						if(vals.get(j).length()==0)
+							continue;
+						valString += pipe.valuesPrefix + vals.get(j) +  "\n";
+					}
 					pipe.values = valString;
 					//pipe.values = "test.img";
 					pipe.formatType = form.getValueAsString("formatType");
-				}
+				}	
 				if(pipe.type.equals("Modules")){
-					pipe.location = loc + form.getValueAsString("location");
+					pipe.locationPrefix = form.getValueAsString("locationPrefix");
+					pipe.location = pipe.locationPrefix + form.getValueAsString("location");
 				}
 				if(pipe.type.equals("Modules") || pipe.type.equals("Groups"))
 					pipe.uri = form.getValueAsString("uri");
