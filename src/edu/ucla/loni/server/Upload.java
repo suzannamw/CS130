@@ -88,7 +88,7 @@ public class Upload extends HttpServlet {
 					}
 				}
 				
-				if (root == ""){
+				if (root.equals("")){
 					res.getWriter().println("error :: Root directory has not been found.");
 					return;
 				}

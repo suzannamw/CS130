@@ -310,8 +310,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			doc = ServerUtils.update(doc, pipe, false);
 			ServerUtils.writeXML(file, doc);
 			
-			// TODO if packageChanged, move file
-			
 			// Update the database
 			Timestamp modified = new Timestamp(file.lastModified());
 			Database.updatePipefile(pipe, modified);
@@ -321,6 +319,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// Write the access file
 			ServerUtils.writeAccessFile(root);
+			
+			// If package updated, move the file
+			if (pipe.packageUpdated){
+				moveFile(root, pipe, pipe.packageName);
+			}
 		} 
 		catch (Exception e) {
 			e.printStackTrace();

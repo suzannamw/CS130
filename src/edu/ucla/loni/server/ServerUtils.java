@@ -167,11 +167,11 @@ public class ServerUtils {
 			Element main = getMainElement(doc);
 			
 			String mainName = main.getName();
-			if (mainName == "dataModule"){
+			if (mainName.equals("dataModule")){
 				pipe.type = "Data";
-			} else if (mainName == "module"){
+			} else if (mainName.equals("module")){
 				pipe.type = "Modules";
-			} else if (mainName == "moduleGroup"){
+			} else if (mainName.equals("moduleGroup")){
 				pipe.type = "Groups";
 			} else {
 				throw new Exception("Pipefile has unknown type");
@@ -184,7 +184,7 @@ public class ServerUtils {
 			pipe.tags = getChildrenText(main, "tag", ",");
 			
 			// Get type specific properties			
-			if (pipe.type == "Data"){
+			if (pipe.type.equals("Data")){
 				Element values = main.getChild("values");
 				if (values != null){
 					pipe.values = getChildrenText(values, "value", "\n");
@@ -199,11 +199,11 @@ public class ServerUtils {
 				}
 			}
 			
-			if (pipe.type == "Modules"){
+			if (pipe.type.equals("Modules")){
 				pipe.location = main.getAttributeValue("location", "");
 			} 
 			
-			if (pipe.type == "Modules" || pipe.type == "Groups"){
+			if (pipe.type.equals("Modules") || pipe.type.equals("Groups")){
 				pipe.uri = main.getChildText("uri");
 			}
 			
@@ -254,7 +254,7 @@ public class ServerUtils {
 				}
 			}
 		
-			if (pipe.type == "Data"){
+			if (pipe.type.equals("Data")){
 				// Update values (values child => children)
 				Element valuesElement = main.getChild("values");
 				if (valuesElement == null){
@@ -291,13 +291,13 @@ public class ServerUtils {
 			}
 			
 			
-			if (pipe.type == "Modules"){
+			if (pipe.type.equals("Modules")){
 				// Update location (attribute)
 				main.setAttribute("location", pipe.location);
 			}
 			
 			
-			if (pipe.type == "Modules" || pipe.type == "Groups"){
+			if (pipe.type.equals("Modules") || pipe.type.equals("Groups")){
 				// Update uri (child)
 				Element uri = main.getChild("uri");
 				

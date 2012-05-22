@@ -10,7 +10,7 @@ public class Pipefile implements Serializable {
 	
 	// General Properties
 	public String name;
-	public String type;		// "Data", "Modules", or "Groups"
+	public String type;				// "Data", "Modules", or "Groups"
 	public String packageName;
 	public String description;
 	public String tags;
@@ -24,6 +24,8 @@ public class Pipefile implements Serializable {
 	public String locationPrefix; 	// For Modules
 	public String uri;				// For Modules and Workflows
 	
+	public boolean packageUpdated; 	// Easy way to tell if the package changed
+	
 	public Pipefile(){
 		fileId = 0;
 		absolutePath = "";
@@ -36,8 +38,12 @@ public class Pipefile implements Serializable {
 		access = "";
 		
 		values = "";
+		valuesPrefix = "";
 		formatType = "";
 		location = "";
+		locationPrefix = "";
 		uri = "";
+		
+		packageUpdated = false;
 	}
 }
