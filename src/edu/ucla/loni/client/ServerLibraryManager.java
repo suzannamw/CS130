@@ -1125,7 +1125,7 @@ public class ServerLibraryManager implements EntryPoint {
 		values.setTitle("Values");
 		values.setName("values");
 		values.setWidth(width);
-		values.setHint("Newline separated list<br/> Prefix = "); // TODO
+		values.setHint("Newline separated list<br/>"); 
 		
 		TextItem formatType = new TextItem();
 		formatType.setTitle("Format Type");
@@ -1136,7 +1136,7 @@ public class ServerLibraryManager implements EntryPoint {
 		location.setTitle("Location");
 		location.setName("location");
 		location.setWidth(width);
-		location.setHint("Prefix = "); // TODO
+		//location.setHint("Prefix = "); 
 		
 		TextItem uri = new TextItem();
 		uri.setTitle("URI");
@@ -1173,11 +1173,11 @@ public class ServerLibraryManager implements EntryPoint {
 			String valString = "";
 			RegExp split = RegExp.compile("\n", "m");
 			SplitResult vals = split.split(pipe.values);
-			RegExp re = RegExp.compile(".*://.*/(.*)");
+			RegExp re = RegExp.compile("(.*://.*/)?(.*)");
 			for (int j = 0; j<vals.length(); j++){
 				MatchResult m = re.exec(vals.get(j));
 				if(m!= null){
-					valString += m.getGroup(1) + "\n";
+					valString += m.getGroup(2) + "\n";
 				}
 			}
 			form.setValue("values", valString);
@@ -1210,7 +1210,7 @@ public class ServerLibraryManager implements EntryPoint {
 		Button update = new Button("Update");
 		update.addClickHandler( new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				RegExp re = RegExp.compile("(.*://.*/)(.*)");
+				RegExp re = RegExp.compile("(.*://.*/)?(.*)");
 				pipe.name = form.getValueAsString("name");
 				pipe.packageName = form.getValueAsString("package");
 				pipe.type = form.getValueAsString("type");
@@ -1229,6 +1229,7 @@ public class ServerLibraryManager implements EntryPoint {
 							valString += m.getGroup(1) + vals.get(j) +  "\n";
 						}
 					pipe.values = valString;
+					//pipe.values = "test.img";
 					pipe.formatType = form.getValueAsString("formatType");
 				}
 				if(pipe.type.equals("Modules")){
