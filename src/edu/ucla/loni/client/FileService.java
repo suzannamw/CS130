@@ -7,7 +7,7 @@ import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;
 
 @RemoteServiceRelativePath("file")
 public interface FileService extends RemoteService {
-	Pipefile[]	getFiles(String root) throws Exception;
+	Pipefile[]	getFiles(String root, boolean useMonitorFile) throws Exception;
 	
 	Pipefile[] 	getSearchResults(String root, String query) throws Exception;
 	

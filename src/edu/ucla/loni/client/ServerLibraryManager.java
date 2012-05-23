@@ -36,12 +36,14 @@ import com.smartgwt.client.types.ListGridComponent;
 import com.smartgwt.client.types.SelectionAppearance;
 import com.smartgwt.client.types.VerticalAlignment;
 import com.smartgwt.client.util.SC;
+import com.smartgwt.client.util.ValueCallback;
 
 import com.smartgwt.client.widgets.events.ClickEvent;  
 import com.smartgwt.client.widgets.events.ClickHandler;
 import com.smartgwt.client.widgets.events.ResizedEvent;
 import com.smartgwt.client.widgets.events.ResizedHandler;
 import com.smartgwt.client.widgets.Button;
+import com.smartgwt.client.widgets.Dialog;
 import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
 import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
@@ -96,6 +98,11 @@ public class ServerLibraryManager implements EntryPoint {
 	 *   Current Root Directory
 	 */
 	private String rootDirectory = rootDirectoryDefault;
+	
+	/**
+	 *  Current Root Directory Display 
+	 */
+	private Label rootDirectoryDisplay = new Label(rootDirectory);
 	
 	/**
 	 *   Workarea
@@ -421,11 +428,10 @@ public class ServerLibraryManager implements EntryPoint {
 		basicInstructions();
 	    
 		// Left -- Root Directory -- Label
-		final Label rootCurrent = new Label(rootDirectory);
-		rootCurrent.setHeight(40);
-		rootCurrent.setAlign(Alignment.CENTER);
-		rootCurrent.setValign(VerticalAlignment.TOP);
-		rootCurrent.setStyleName("root-directory");
+		rootDirectoryDisplay.setHeight(40);
+		rootDirectoryDisplay.setAlign(Alignment.CENTER);
+		rootDirectoryDisplay.setValign(VerticalAlignment.TOP);
+		rootDirectoryDisplay.setStyleName("root-directory");
 		
 		// Left -- Root Directory -- Form
 		final TextItem rootNew = new TextItem();
@@ -519,7 +525,7 @@ public class ServerLibraryManager implements EntryPoint {
 	    left.setPadding(10);
 	    left.setBackgroundColor("#F5DEB3");
 	    
-	    left.addMember(rootCurrent);
+	    left.addMember(rootDirectoryDisplay);
 	    left.addMember(searchForm);
 	    left.addMember(toolStrip);
 	    left.addMember(treeGrid);
@@ -531,11 +537,11 @@ public class ServerLibraryManager implements EntryPoint {
 	    	}
 	    });
 	    
-	    rootCurrent.addClickHandler(new ClickHandler() {
+	    rootDirectoryDisplay.addClickHandler(new ClickHandler() {
 	    	public void onClick(ClickEvent event){
 	    		rootNew.setValue(rootDirectory);
 	    		
-	    		left.removeMember(rootCurrent);
+	    		left.removeMember(rootDirectoryDisplay);
 	    		left.addMember(rootForm, 0);
 	    		
 	    		rootForm.focusInItem(rootNew);
@@ -552,10 +558,10 @@ public class ServerLibraryManager implements EntryPoint {
 	            	rootDirectory = newRoot;
             		
             		// Update the view
-	            	rootCurrent.setContents(rootDirectory);
+	            	rootDirectoryDisplay.setContents(rootDirectory);
 	            	
 	            	left.removeMember(rootForm);
-            		left.addMember(rootCurrent, 0);
+            		left.addMember(rootDirectoryDisplay, 0);
         	        
         	        // Update the tree if need be
         	        if (updateTree){
@@ -582,9 +588,6 @@ public class ServerLibraryManager implements EntryPoint {
 
 	    // Tree Initialization
 	    updateFullTree();
-	    
-	    // Group Initialization
-	    getGroups(false);
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -597,7 +600,9 @@ public class ServerLibraryManager implements EntryPoint {
 	private void getFiles(){
 		pipes.clear();
 		
-		fileServer.getFiles(rootDirectory, new AsyncCallback<Pipefile[]>() {
+		// TODO, way to choose whether or not to use the monitor file
+		
+		fileServer.getFiles(rootDirectory, false, new AsyncCallback<Pipefile[]>() {
 		        public void onFailure(Throwable caught) {
 		        	error("Failed to retrieve files: " + caught.getMessage());
 		        }
@@ -612,12 +617,33 @@ public class ServerLibraryManager implements EntryPoint {
 		        		
 		        		packages = new String[packageNames.size()];
 		        		packages = packageNames.toArray(packages);
+		        		
+		        		// After getting the files, get the groups
+		        		getGroups(false);
+		        		
+		        		// Update the tree
+		        		sortFullTree();
 		        	} 
 		        	else {
-		        		SC.say("No pipefiles found in root directory");
+		        		Dialog d = new Dialog();
+		        		d.setWidth(446); // Based in the message
+		        		d.setShowCloseButton(false);
+		        		
+		        		SC.askforValue(
+		        			"Invalid Root Directory",
+		        			"Root directory does not exist, is not a directory, " +
+		        				"or does not contain any pipefiles.<br/>",
+		        			rootDirectory,
+		        			new ValueCallback(){
+								public void execute(String value) {
+									rootDirectory = value;
+									rootDirectoryDisplay.setContents(value);
+									getFiles();
+								}
+		        			},
+		        			d
+		        		);
 		        	}
-		        	
-		        	sortFullTree();
 		        }
 		    }
         );
@@ -665,7 +691,6 @@ public class ServerLibraryManager implements EntryPoint {
 		    public void onSuccess(Void result){
 		    	success("Successfully updated " + pipe.name);
 		    	updateFullTree();
-		    	getGroups(false);
 		    	lastPipefile = pipe;
 		    }
 		});

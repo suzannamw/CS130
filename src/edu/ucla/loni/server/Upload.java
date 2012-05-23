@@ -58,9 +58,9 @@ public class Upload extends HttpServlet {
 		ServerUtils.writeXML(dest, doc);
 		pipe.absolutePath = destPath;
 		
-		int dirId = Database.selectOrInsertDirectory(root);
+		Directory dir = Database.selectDirectory(root);
 		Timestamp fs_lastModified = new Timestamp(dest.lastModified());
-		Database.insertPipefile(dirId, pipe, fs_lastModified);
+		Database.insertPipefile(dir.dirId, pipe, fs_lastModified);
 	}
 	
 	public void doPost(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {

@@ -57,10 +57,39 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Update the database for this root folder 
 	 *  @param root absolute path of the root directory
 	 */
-	private void updateDatabase(File rootDir) throws Exception {		
+	private void updateDatabase(File rootDir, boolean useMonitorFile) throws Exception {
+		// Get the monitor file and access file
+		Timestamp monitorModified = null;
+		File monitor = new File(rootDir.getAbsoluteFile() + File.separator + ".monitorfile");
+		if (monitor.exists()){
+			monitorModified = new Timestamp(monitor.lastModified());
+		}
+		
+		Timestamp accessModified = null;
+		File access = new File(rootDir.getAbsoluteFile() + File.separator + ".access.xml");
+		if (access.exists()){
+			accessModified = new Timestamp(access.lastModified());
+		}
+		
+		// Get the directory from the database, insert if null
+		Directory dir = Database.selectDirectory(rootDir.getAbsolutePath());
+		if (dir == null){			
+			Database.insertDirectory(rootDir.getAbsolutePath(), monitorModified, accessModified);
+			dir = Database.selectDirectory(rootDir.getAbsolutePath());
+		}
+		
+		// If use monitor file and it has not changed
+		if (useMonitorFile && monitorModified != null){
+			if (monitorModified.equals(dir.monitorModified)){
+				return;
+			} else {
+				dir.monitorModified = monitorModified;
+				Database.updateDirectory(dir);
+			}
+		}
+		
 		// Clean the database
-		int dirId = Database.selectOrInsertDirectory(rootDir.getAbsolutePath());	
-		cleanDatabase(dirId);
+		cleanDatabase(dir.dirId);
 		
 		// Update all files
 		ArrayList<File> files = getAllPipefiles(new ArrayList<File>(), rootDir);
@@ -90,7 +119,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		    	Pipefile pipe = ServerUtils.parse(file);
 				
 				if (insert){
-					Database.insertPipefile(dirId, pipe, fs_lastModified);
+					Database.insertPipefile(dir.dirId, pipe, fs_lastModified);
 					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
 				} else {
 					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
@@ -99,6 +128,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				
 				updateGroupDependencies(1, pipe.fileId, pipe.access);
  		    }
+		}
+		
+		// If access exists and has been changed
+		if (accessModified != null && accessModified.before(dir.accessModified)){
+			// TODO readAccessFile
 		}
 	}
 	
@@ -194,9 +228,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		ServerUtils.writeXML(dest, doc);
 		
 		// Update Database
-		int dirId = Database.selectOrInsertDirectory(root);
+		Directory dir = Database.selectDirectory(root);
 		Timestamp modified = new Timestamp(dest.lastModified());
-		Database.insertPipefile(dirId, newPipe, modified);
+		Database.insertPipefile(dir.dirId, newPipe, modified);
 	}
 	
 	/**
@@ -260,15 +294,15 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Thus the children are the packages
 	 *  @param root the absolute path of the root directory
 	 */
-	public Pipefile[] getFiles(String root) throws Exception {
+	public Pipefile[] getFiles(String root, boolean useMonitorFile) throws Exception {
 		try {
 			File rootDir = new File(root);
 			if (rootDir.exists() && rootDir.isDirectory()){
-				updateDatabase(rootDir);
+				updateDatabase(rootDir, useMonitorFile);
 				
-				int dirId = Database.selectOrInsertDirectory(root);
+				Directory dir = Database.selectDirectory(rootDir.getAbsolutePath());
 				
-				return Database.selectPipefiles(dirId);
+				return Database.selectPipefiles(dir.dirId);
 			} else {
 				return null;
 			}
@@ -286,8 +320,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public Pipefile[] getSearchResults(String root, String query) throws Exception{
 		try {
-			int dirId = Database.selectOrInsertDirectory(root); 
-			return Database.selectPipefilesSearch(dirId, query);
+			Directory dir = Database.selectDirectory(root); 
+			return Database.selectPipefilesSearch(dir.dirId, query);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -401,7 +435,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public Group[] getGroups(String root) throws Exception {
 		try {
-			return Database.selectGroups();
+			Directory dir = Database.selectDirectory(root);
+			return Database.selectGroups(dir.dirId);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -415,9 +450,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public void	updateGroup(String root, Group group) throws Exception{
 		try {
+			Directory dir = Database.selectDirectory(root);
+			
 			// Insert or update the group
 			if (group.groupId == -1){
-				Database.insertGroup(group);
+				Database.insertGroup(dir.dirId, group);
 				group.groupId = Database.selectGroupId(group.name);
 			} else {
 				Database.updateGroup(group);

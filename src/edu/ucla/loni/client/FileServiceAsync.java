@@ -5,7 +5,7 @@ import edu.ucla.loni.shared.*;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
 public interface FileServiceAsync {
-	void getFiles(String root, AsyncCallback<Pipefile[]> callback);
+	void getFiles(String root, boolean useMonitorFile, AsyncCallback<Pipefile[]> callback);
 	
 	void getSearchResults(String root, String query, AsyncCallback<Pipefile[]> callback);
 	

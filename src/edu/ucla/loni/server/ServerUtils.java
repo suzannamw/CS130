@@ -3,6 +3,7 @@ package edu.ucla.loni.server;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.sql.Timestamp;
 import java.util.List;
 
 import org.jdom2.Document;
@@ -318,7 +319,8 @@ public class ServerUtils {
 	 * Writes the access file for the root directory
 	 * @throws Exception 
 	 */
-	public static void writeAccessFile(String rootDirectory) throws Exception{		
+	public static void writeAccessFile(String rootDirectory) throws Exception{	
+		Directory dir = Database.selectDirectory(rootDirectory);
 		String accessFilePath = rootDirectory + "/.access.xml";
 		File f = new File(accessFilePath);
 		
@@ -339,7 +341,7 @@ public class ServerUtils {
 		root.addContent(filesRoot);
 		
 		// For each pipe, add a file child to files
-		Pipefile[] pipes = Database.selectPipefiles(Database.selectDirectory(rootDirectory));
+		Pipefile[] pipes = Database.selectPipefiles(dir.dirId);
 		
 		if (pipes != null){
 			for(Pipefile p : pipes) {
@@ -370,7 +372,7 @@ public class ServerUtils {
 		root.addContent(groupsRoot);
 		
 		// For each group, add a group child to groups
-		Group[] groups = Database.selectGroups();
+		Group[] groups = Database.selectGroups(dir.dirId);
 		
 		if (groups != null){
 			for(Group g : groups) {
@@ -393,6 +395,10 @@ public class ServerUtils {
 		
 		// Write document
 		writeXML(f, doc);
+		
+		// Update when the access file was written
+		dir.accessModified = new Timestamp( f.lastModified() );
+		Database.updateDirectory(dir);
 	}
 	
 	/**

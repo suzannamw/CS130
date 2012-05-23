@@ -35,27 +35,11 @@ public class Database {
 	// Directory
 	////////////////////////////////////////////////////////////
 	
-	/** 
-	 * Gets the directoryID of the root directory by selecting it from the database,
-	 * inserts the directory into the database if needed
-	 * 
-	 * @param absolutePath absolute path of the root directory  
-	 * @return directoryID of the root directory
-	 */
-	public static int selectOrInsertDirectory(String absolutePath) throws Exception{
-		int ret = Database.selectDirectory(absolutePath);
-		if(ret == -1){
-			Database.insertDirectory(absolutePath);
-			ret = Database.selectDirectory(absolutePath);
-		}
-		return ret;
-	}
-	
-	public static int selectDirectory(String absolutePath) throws Exception{
+	public static Directory selectDirectory(String absolutePath) throws Exception{
 		Connection con = getDatabaseConnection();
 		
 		PreparedStatement stmt = con.prepareStatement(
-			"SELECT directoryID " +
+			"SELECT * " +
 			"FROM directories " +		
 			"WHERE absolutePath = ?"		
 		);
@@ -63,23 +47,49 @@ public class Database {
 		ResultSet rs = stmt.executeQuery();
 		
 		if (rs.next()){
-			return rs.getInt(1);
+			Directory dir = new Directory();
+			
+			dir.dirId = rs.getInt(1);
+			dir.absolutePath = rs.getString(2);
+			dir.monitorModified = rs.getTimestamp(3);
+			dir.accessModified = rs.getTimestamp(4);
+			
+			return dir;
 		} else {
-			return -1;
+			return null;
 		}
 	}
 	
-	public static void insertDirectory(String absolutePath) throws Exception{
+	public static void insertDirectory(String absolutePath, Timestamp monitorModified, Timestamp accessModified) throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"INSERT INTO directories (absolutePath) " +
-			"VALUES (?)" 		
+			"INSERT INTO directories (absolutePath, monitorModified, accessModified) " +
+			"VALUES (?, ?, ?)" 		
 		);
 		stmt.setString(1, absolutePath);
+		stmt.setTimestamp(2, monitorModified);
+		stmt.setTimestamp(3, accessModified);
 		int updated = stmt.executeUpdate();
 		
 		if (updated != 1){
 			throw new Exception("Failed to insert row into 'directory'");
+		}
+	}
+	
+	public static void updateDirectory(Directory dir) throws Exception{
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"UPDATE directories " +
+			"SET monitorModified = ?, accessModified = ? " +
+			"WHERE directoryId = ?" 		
+		);
+		stmt.setTimestamp(1, dir.monitorModified);
+		stmt.setTimestamp(2, dir.accessModified);
+		stmt.setInt(3, dir.dirId);
+		int updated = stmt.executeUpdate();
+		
+		if (updated != 1){
+			throw new Exception("Failed to update row in 'directory'");
 		}
 	}
 	
@@ -310,13 +320,15 @@ public class Database {
 	/**
 	 *  Select all groups
 	 */
-	public static Group[] selectGroups() throws Exception{
+	public static Group[] selectGroups(int dirId) throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
 			"SELECT groupId, name, users, COUNT(depId) " +
 			"FROM groups AS g LEFT JOIN groupDependencies AS gd ON g.groupId = gd.groupId " +
+			"WHERE directoryId = ?" +
 			"GROUP BY groupId"
 		);
+		stmt.setInt(1, dirId);
 		ResultSet rs = stmt.executeQuery();
 		
 		return resultSetToGroupArray(rs);
@@ -345,14 +357,15 @@ public class Database {
 	/**
 	 *  Insert a group
 	 */
-	public static void insertGroup(Group group) throws Exception{
+	public static void insertGroup(int dirId, Group group) throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"INSERT INTO groups (name, users) " +
-			"VALUES (?, ?)"
+			"INSERT INTO groups (directoryId, name, users) " +
+			"VALUES (?, ?, ?)"
 		);
-		stmt.setString(1, group.name);
-		stmt.setString(2, group.users);
+		stmt.setInt(1, dirId);
+		stmt.setString(2, group.name);
+		stmt.setString(3, group.users);
 		
 		int inserted = stmt.executeUpdate();
 		
