@@ -427,4 +427,52 @@ public class ServerUtils {
 			recursiveRemoveDir(dir.getParentFile());
 		}
 	}
+	
+	/**
+	 * 
+	 * @param root
+	 * @param oldFilename
+	 * @return abspath for newFile, 
+	 * null if it fails, and the new file should not be added to the system
+	 */
+	
+	public static String newFilename(String root, String oldFilename)
+	{
+		File f = new File(oldFilename);
+		if (!f.exists() || !f.canRead())
+			return null;
+		Pipefile p = parse(f);
+		if (p == null)
+			return null; // A junk file, cannot be parse
+		String testPath = newAbsolutePath(root, p.packageName, p.type, f.getName());
+		if (testPath.substring(testPath.lastIndexOf(".")) != ".pipe")
+			return null; // The file can be parse, but it has wrong extension
+
+		File readyFile = new File(testPath);
+		if (!readyFile.exists())
+			return testPath; // <root>/<pkg>/<mod>/my.pipe
+		else
+		{
+			// <root>/<pkg>/<mod>/my = testPart
+			String testPathPart = testPath.substring(0, testPath.lastIndexOf("."));
+			String ext = ".pipe";
+			
+			for (int i = 2 ;; i++) // trying <root>/<pkg>/<mod>/my_<lucky number>.pipe
+			{
+				testPath = testPathPart + "_(" + i + ")" + ext;
+				readyFile = new File(testPath);
+				if (!readyFile.exists())
+					return testPath;
+			}
+			
+			/*
+			 * The code above will try:
+			 * <root>/<pkg>/<mod>/my.pipe
+			 * <root>/<pkg>/<mod>/my_(2).pipe
+			 * <root>/<pkg>/<mod>/my_(3).pipe
+			 * ...
+			 */
+			
+		}
+	}
 }
