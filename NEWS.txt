@@ -1,11 +1,54 @@
-* Noteworthy changes in release 1.0 (2012-01-05) [stable]
+* Noteworthy changes in release 1.0 (2012-01-05)
 
 ** New Features
 
 Users can change the root directory and browser files within the directory
 
-* Noteworthy changes in release 1.0 (2012-01-05) [stable]
+
+* Noteworthy changes in release 1.1 (2012-03-05)
 
 ** New Features
 
 File Operations User Interface (dowmload, remove, copy, move)
+
+
+* Noteworthy changes in release 1.2 (2012-06-05)
+
+** New Features
+
+User can download a single pipefile
+User can remove files
+
+
+* Noteworthy changes in release 1.3 (2012-08-05)
+
+** New Features
+
+User can view the properties of a file
+
+
+* Noteworthy changes in release 1.4 (2012-12-05)
+
+** New Features
+
+User can copy and move files
+Right click on a file or folder gives a context menu
+Ability to add/edit/delete groups
+Guard against loops in group definition
+
+
+* Noteworthy changes in release 1.5 (2012-17-05)
+
+** New Features
+
+User can download multiple files as ZIP folder
+Access file is now written after every relevant change
+Simpler Copy/Move User Interface
+Back Button (for last pipefile viewed)
+
+
+* Noteworthy changes in release 1.6 (2012-21-05)
+
+** New Features
+
+Users can now upload files
