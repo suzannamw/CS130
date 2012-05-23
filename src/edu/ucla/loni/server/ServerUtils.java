@@ -444,13 +444,7 @@ public class ServerUtils {
 	
 	public static String newFilename(String root, String oldFilename)
 	{
-		File f = new File(oldFilename);
-		if (!f.exists() || !f.canRead())
-			return null;
-		Pipefile p = parse(f);
-		if (p == null)
-			return null; // A junk file, cannot be parse
-		String testPath = newAbsolutePath(root, p.packageName, p.type, f.getName());
+		String testPath = oldFilename;
 		if (testPath.substring(testPath.lastIndexOf(".")) != ".pipe")
 			return null; // The file can be parse, but it has wrong extension
 
