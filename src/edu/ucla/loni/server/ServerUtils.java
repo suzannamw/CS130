@@ -435,29 +435,26 @@ public class ServerUtils {
 	}
 	
 	/**
-	 * 
-	 * @param root
-	 * @param oldFilename
 	 * @return abspath for newFile, 
 	 * null if it fails, and the new file should not be added to the system
 	 */
 	
-	public static String newFilename(String root, String oldFilename)
+	public static String newFilename(String targetFilePath)
 	{
-		String testPath = oldFilename;
+		String testPath = targetFilePath;
 		if (testPath.substring(testPath.lastIndexOf(".")) != ".pipe")
 			return null; // The file can be parse, but it has wrong extension
 
 		File readyFile = new File(testPath);
 		if (!readyFile.exists())
-			return testPath; // <root>/<pkg>/<mod>/my.pipe
+			return testPath;
 		else
 		{
 			// <root>/<pkg>/<mod>/my = testPart
 			String testPathPart = testPath.substring(0, testPath.lastIndexOf("."));
 			String ext = ".pipe";
 			
-			for (int i = 2 ;; i++) // trying <root>/<pkg>/<mod>/my_<lucky number>.pipe
+			for (int i = 2 ;; i++)
 			{
 				testPath = testPathPart + "_(" + i + ")" + ext;
 				readyFile = new File(testPath);
