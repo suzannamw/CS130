@@ -115,7 +115,7 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   Last pipefile that was viewed
 	 */
-	private Pipefile lastPipefile = null;
+	private String lastPipefile = null;
 	
 	/**
 	 *   Button that allows you to jump back to the last pipefile you viewed
@@ -393,7 +393,7 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		backToLastPipefile.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				viewFile(lastPipefile);
+				viewFile(pipes.get(lastPipefile));
 			}
 		});
 		
@@ -567,6 +567,7 @@ public class ServerLibraryManager implements EntryPoint {
         	        // Update the tree if need be
         	        if (updateTree){
         	        	updateFullTree();
+        	        	basicInstructions();
         	        }
 	            }
             }  
@@ -600,6 +601,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 */
 	private void getFiles(){
 		pipes.clear();
+		basicInstructions();
 		
 		// TODO, way to choose whether or not to use the monitor file
 		
@@ -626,23 +628,25 @@ public class ServerLibraryManager implements EntryPoint {
 		        		sortFullTree();
 		        	} 
 		        	else {
-		        		Dialog d = new Dialog();
-		        		d.setWidth(446); // Based in the message
-		        		d.setShowCloseButton(false);
+		        		Dialog dialog = new Dialog();
+		        		dialog.setWidth(446); // Based in the message
+		        		dialog.setShowCloseButton(false);
 		        		
 		        		SC.askforValue(
 		        			"Invalid Root Directory",
 		        			"Root directory does not exist, is not a directory, " +
-		        				"or does not contain any pipefiles.<br/>",
+		        				"or does not contain any pipefiles.<br/>" +
+		        				"Please specify a new root directory:",
 		        			rootDirectory,
 		        			new ValueCallback(){
 								public void execute(String value) {
 									rootDirectory = value;
 									rootDirectoryDisplay.setContents(value);
-									getFiles();
+									updateFullTree();
+									basicInstructions();
 								}
 		        			},
-		        			d
+		        			dialog
 		        		);
 		        	}
 		        }
@@ -691,8 +695,9 @@ public class ServerLibraryManager implements EntryPoint {
 
 		    public void onSuccess(Void result){
 		    	success("Successfully updated " + pipe.name);
-		    	updateFullTree();
-		    	lastPipefile = pipe;
+		    	if (pipe.packageUpdated){
+		    		updateFullTree();
+		    	}
 		    }
 		});
 	}
@@ -742,7 +747,7 @@ public class ServerLibraryManager implements EntryPoint {
 
 		    public void onSuccess(Void result){
 		    	success("Successfully moved " + selected.length + " file(s) to " + packageName + ".");
-		    	updateFullTree(); 
+		    	updateFullTree();
 		    	basicInstructions();
 		    }
 		});
@@ -846,7 +851,6 @@ public class ServerLibraryManager implements EntryPoint {
     		String primaryKey = primaryName;
     		String secondaryKey = primaryName + " > " + secondaryName;
     		
-    		
     		// Primary Node
     		TreeNode primaryNode;
     		if (nodes.containsKey(primaryKey)){
@@ -892,6 +896,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Ensure tree is displayed
 	 */
 	private void updateFullTree(){
+		fullTree.removeList(fullTree.getDescendants());
 		treeGrid.setData(fullTree);
 		getFiles();
 	}
@@ -1098,7 +1103,7 @@ public class ServerLibraryManager implements EntryPoint {
 	private void viewFile(final Pipefile pipe){
 		clearWorkarea();
 		
-		lastPipefile = pipe;
+		lastPipefile = pipe.absolutePath;
 		backToLastPipefile.hide();
 		
 		// File Operations
@@ -1263,11 +1268,11 @@ public class ServerLibraryManager implements EntryPoint {
 		Button update = new Button("Update");
 		update.addClickHandler( new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				String newPackageName = pipe.packageName;
+				String newPackageName = form.getValueAsString("package");
 				pipe.packageUpdated = pipe.packageName.equals(newPackageName) ? false : true;
 				
 				pipe.name = form.getValueAsString("name");
-				pipe.packageName = form.getValueAsString("package");
+				pipe.packageName = newPackageName;
 				pipe.type = form.getValueAsString("type");
 				pipe.description = form.getValueAsString("description");
 				pipe.tags = form.getValueAsString("tags");
@@ -1534,37 +1539,13 @@ public class ServerLibraryManager implements EntryPoint {
 		title.setStyleName("workarea-title");
 		
 		// Uses GWT form components so we can submit in the background
-		Grid grid = new Grid(5,3);
+		Grid grid = new Grid(4,3);
 		
 		final FormPanel uploadForm = new FormPanel();
 		uploadForm.setWidget(grid);
 		uploadForm.setEncoding(FormPanel.ENCODING_MULTIPART);
 		uploadForm.setMethod(FormPanel.METHOD_POST);
 		uploadForm.setAction(GWT.getModuleBaseURL()+"upload");
-		
-		// Root Directory
-		Label rootLabel = new Label("Root Directory");
-		rootLabel.setHeight(30);
-		
-		Label rootName = new Label(rootDirectory);
-		rootName.setHeight(30);
-		
-		Label rootDescription = new Label (
-			"The files will uploaded to the library specified by the root directory.<br/>" +
-			"If you have changed the root directory, click 'Import' again to update this page."
-		);
-		rootDescription.setHeight(30);
-		rootDescription.setWidth(500);
-		rootDescription.setStyleName("workarea-description");
-		
-		Hidden hRoot = new Hidden();
-		hRoot.setName("root");
-		hRoot.setValue(rootDirectory);
-		
-		grid.setWidget(0, 0, rootLabel);
-		grid.setWidget(0, 1, rootName);
-		grid.setWidget(0, 2, rootDescription);
-		grid.setWidget(4, 1, hRoot);
 		
 		// Package Name
 		Label packageLabel = new Label("Package");
@@ -1582,9 +1563,9 @@ public class ServerLibraryManager implements EntryPoint {
 		packageDescription.setWidth(500);
 		packageDescription.setStyleName("workarea-description");
 		
-		grid.setWidget(1, 0, packageLabel);
-		grid.setWidget(1, 1, packageName);
-		grid.setWidget(1, 2, packageDescription);
+		grid.setWidget(0, 0, packageLabel);
+		grid.setWidget(0, 1, packageName);
+		grid.setWidget(0, 2, packageDescription);
 		
 		// Upload local file
 		Label uploadLabel = new Label("Upload Local Files");
@@ -1592,9 +1573,23 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		FileUpload fileItem = new FileUpload();
 		fileItem.setName("theMostUniqueName");
+		Scheduler.get().scheduleDeferred(new Command(){
+			@Override
+			public void execute(){
+				enableUpload();		//FROM :: http://forums.smartclient.com/showthread.php?t=16007
+			}
+		});
 		
-		grid.setWidget(2, 0, uploadLabel);
-		grid.setWidget(2, 1, fileItem);
+		Label uploadDescription = new Label (
+			"Select local files to upload. Accespts \".zip\" and \".pipe\" files."
+		);
+		uploadDescription.setHeight(30);
+		uploadDescription.setWidth(500);
+		uploadDescription.setStyleName("workarea-description");
+		
+		grid.setWidget(1, 0, uploadLabel);
+		grid.setWidget(1, 1, fileItem);
+		grid.setWidget(1, 2, uploadDescription);
 		
 		// Upload URLs
 		Label urlLabel = new Label("Upload From URLs");
@@ -1612,16 +1607,9 @@ public class ServerLibraryManager implements EntryPoint {
 		urlDescription.setWidth(400);
 		urlDescription.setStyleName("workarea-description");
 		
-		grid.setWidget(3, 0, urlLabel);
-		grid.setWidget(3, 1, urls);
-		grid.setWidget(3, 2, urlDescription);
-		
-		Scheduler.get().scheduleDeferred(new Command(){
-			@Override
-			public void execute(){
-				enableUpload();		//FROM :: http://forums.smartclient.com/showthread.php?t=16007
-			}
-		});
+		grid.setWidget(2, 0, urlLabel);
+		grid.setWidget(2, 1, urls);
+		grid.setWidget(2, 2, urlDescription);
 		
 		Button uploadButton = new Button("Send");
         uploadButton.addClickHandler(new ClickHandler(){
@@ -1629,7 +1617,7 @@ public class ServerLibraryManager implements EntryPoint {
         		uploadForm.submit();
             }
         });
-        grid.setWidget(4, 0, uploadButton);
+        grid.setWidget(3, 0, uploadButton);
         
 		uploadForm.addSubmitCompleteHandler(new FormPanel.SubmitCompleteHandler() {
 			public void onSubmitComplete(SubmitCompleteEvent event) {
@@ -1639,8 +1627,18 @@ public class ServerLibraryManager implements EntryPoint {
 				else {
 					error("ERROR :: " + event.getResults());
 				}
+				
+				updateFullTree();
+				basicInstructions();
 			}
 		});
+		
+		// Root Directory	
+		Hidden hRoot = new Hidden();
+		hRoot.setName("root");
+		hRoot.setValue(rootDirectory);
+		
+		grid.setWidget(3, 1, hRoot);
         
 		workarea.addMember(title);
 		workarea.addMember(uploadForm);
@@ -1735,8 +1733,9 @@ public class ServerLibraryManager implements EntryPoint {
 	 */
 	private void clearWorkarea(){
 		if (lastPipefile != null){
-			if (pipes.containsValue(lastPipefile)){
-				backToLastPipefile.setTitle("Back to " + lastPipefile.name);
+			if (pipes.containsKey(lastPipefile)){
+				Pipefile pipe = pipes.get(lastPipefile);
+				backToLastPipefile.setTitle("Back to " + pipe.name);
 				backToLastPipefile.show();
 			} else {
 				lastPipefile = null;

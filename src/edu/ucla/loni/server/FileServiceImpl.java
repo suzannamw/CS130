@@ -20,20 +20,37 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	////////////////////////////////////////////////////////////
 	// Private Functions
 	////////////////////////////////////////////////////////////
+	
+	/**
+	 * Returns returns an ArrayList of all the pipefiles in the root directory
+	 * Note: this functions only search two levels in
+	 * 
+	 * @param dir, file representing root directory 
+	 */
+	private ArrayList<File> getAllPipefiles(File dir){
+		// Level == 2, dir == root directory
+		// Level == 1, dir == package folder
+		// Level == 0, dir == type folder (do not look go any deeper)
+		return getAllPipefilesRecursive(dir, 2);
+	}
+	
 	/**
 	 *  Recursively get all pipefiles
 	 */
-	private ArrayList<File> getAllPipefiles(ArrayList<File> files, File dir){
-	    if (dir.isDirectory()){
-	    	for (File file : dir.listFiles()){
-	    		getAllPipefiles(files, file);
-	    	}
-	    } else {
-	    	String name = dir.getName();
-	    	if (name.endsWith(".pipe")){
-	    		files.add(dir);	
-	    	}
-	    }
+	private ArrayList<File> getAllPipefilesRecursive(File dir, int level){
+		ArrayList<File> files = new ArrayList<File>();
+		
+		for (File file : dir.listFiles()){
+			if (file.isDirectory() && level > 0){
+				files.addAll( getAllPipefilesRecursive(file, (level - 1)) );
+			} 
+			else {
+				String name = file.getName();
+				if (name.endsWith(".pipe")){
+					files.add(file);
+				}
+			}
+		}
 	    
 	    return files;
 	}
@@ -92,7 +109,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		cleanDatabase(dir.dirId);
 		
 		// Update all files
-		ArrayList<File> files = getAllPipefiles(new ArrayList<File>(), rootDir);
+		ArrayList<File> files = getAllPipefiles(rootDir);
 				
 		// For each pipefile
 		for (File file : files){	
@@ -133,6 +150,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		// If access exists and has been changed
 		if (accessModified != null && accessModified.before(dir.accessModified)){
 			// TODO readAccessFile
+		} else {
+			ServerUtils.writeAccessFile(dir.absolutePath);
 		}
 	}
 	
@@ -150,7 +169,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			}
 			
 			// Remove parent directory if it is empty
-			ServerUtils.recursiveRemoveDir(f.getParentFile());
+			ServerUtils.removeEmptyDirectory(f.getParentFile());
 			
 			// Delete file from database
 			Database.deletePipefile(pipe);
@@ -182,55 +201,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param packageName absolute path of the package
 	 */
 	private void copyFile(String root, Pipefile pipe, String packageName) throws Exception {
-		// Source
-		String oldAbsolutePath = pipe.absolutePath;
-		File src = new File(oldAbsolutePath);
-		
-		// If the source does not exist
-		if (!src.exists()) return;
-		
-		// Destination
-		String filename = src.getName();
-		String newAbsolutePath = ServerUtils.newAbsolutePath(root, packageName, pipe.type, filename);
-		File dest = new File(newAbsolutePath);
-
-		// If the destination directory does not exist, create it and necessary parent directories
-		File destDir = dest.getParentFile();
-		if (destDir.exists() == false){
-			boolean success = destDir.mkdirs();
-			if (!success){
-				throw new Exception("Destination folders could not be created");
-			}
-		}
-		
-		// Copy the file
-		FileInputStream in = new FileInputStream(src);
-		FileOutputStream out = new FileOutputStream(dest);
-		
-		int length = 0;
-		byte[] buffer = new byte[8192];
-		while ((length = in.read(buffer)) != -1){
-			out.write(buffer, 0, length);
-		}
-		
-		in.close();
-		out.flush();
-		out.close();
-
-		// Update Pipefile
-		Pipefile newPipe = pipe;
-		newPipe.packageName = packageName;
-		newPipe.absolutePath = newAbsolutePath;
-		
-		// Update XML
-		Document doc = ServerUtils.readXML(dest);
-		doc = ServerUtils.update(doc, newPipe, true);
-		ServerUtils.writeXML(dest, doc);
-		
-		// Update Database
-		Directory dir = Database.selectDirectory(root);
-		Timestamp modified = new Timestamp(dest.lastModified());
-		Database.insertPipefile(dir.dirId, newPipe, modified);
+		copyOrMoveFile(root, pipe, packageName, true);
 	}
 	
 	/**
@@ -239,18 +210,30 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param packageName is the name of the package as it appears in the Database in column PACKAGENAME
 	 *  @throws Exception 
 	 */
-	public void moveFile(String root, Pipefile pipe, String packageName) throws Exception{		
+	public void moveFile(String root, Pipefile pipe, String packageName) throws Exception{
+		copyOrMoveFile(root, pipe, packageName, false);
+	}
+	
+	private void copyOrMoveFile(String root, Pipefile pipe, String packageName, boolean copy) throws Exception{
 		// Source
 		String oldAbsolutePath = pipe.absolutePath;
 		File src = new File(oldAbsolutePath);
 		
 		// If the source does not exist
-		if (!src.exists()) return;
+		if (!src.exists()) {
+			throw new Exception("Soruce file does not exist");
+		}
 		
 		// Destination
 		String filename = src.getName();
 		String newAbsolutePath = ServerUtils.newAbsolutePath(root, packageName, pipe.type, filename);
 		File dest = new File(newAbsolutePath);
+		
+		// If the destination exists, get the next available filename
+		if (dest.exists()) {
+			newAbsolutePath = ServerUtils.newFilename(newAbsolutePath);
+			dest = new File(newAbsolutePath);
+		}
 		
 		// If the destination directory does not exist, create it and necessary parent directories
 		File destDir = dest.getParentFile();
@@ -261,27 +244,49 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			}
 		}
 		
-		// Move the file
-		boolean success = src.renameTo(dest);
-		if(success == false) {
-			throw new Exception("File could not be moved");
+		// Copy or Move the file 
+		if (copy){
+			FileInputStream in = new FileInputStream(src);
+			FileOutputStream out = new FileOutputStream(dest);
+			
+			int length = 0;
+			byte[] buffer = new byte[8192];
+			while ((length = in.read(buffer)) != -1){
+				out.write(buffer, 0, length);
+			}
+			
+			in.close();
+			out.flush();
+			out.close();
+		} 
+		else {
+			boolean success = src.renameTo(dest);
+			if(success == false) {
+				throw new Exception("File could not be moved");
+			}
 		}
 		
 		// Remove parent directory if it is empty
-		ServerUtils.recursiveRemoveDir(src.getParentFile());
+		ServerUtils.removeEmptyDirectory(src.getParentFile());
 		
 		// Update Pipefile
 		pipe.packageName = packageName;
 		pipe.absolutePath = newAbsolutePath;
-		
+				
 		// Update XML
 		Document doc = ServerUtils.readXML(dest);
 		doc = ServerUtils.update(doc, pipe, true);
 		ServerUtils.writeXML(dest, doc);
-		
+			
 		// Update Database
 		Timestamp modified = new Timestamp(dest.lastModified());
-		Database.updatePipefile(pipe, modified);
+		if (copy) {
+			Directory dir = Database.selectDirectory(root);
+			Database.insertPipefile(dir.dirId, pipe, modified);
+		} 
+		else {
+			Database.updatePipefile(pipe, modified);
+		}
 	}
 	
 	////////////////////////////////////////////////////////////

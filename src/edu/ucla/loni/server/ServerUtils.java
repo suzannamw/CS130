@@ -326,7 +326,10 @@ public class ServerUtils {
 		
 		// If the path doesn't exist return
 		if (!f.exists()){
-			return;
+			boolean success = f.createNewFile();
+			if (!success){
+				throw new Exception ("Could not create access file");
+			}
 		}
 		
 		// Create blank document
@@ -421,16 +424,28 @@ public class ServerUtils {
 	}
 	
 	/**
-	 * recursively remove dir if it is empty
+	 * Remove empty directory
+	 * @param dir, parent folder that held the pipefile that was removed / moved
 	 */
-	public static void recursiveRemoveDir(File dir)
-	{
-		if (!dir.isDirectory())
-			return;
+	public static void removeEmptyDirectory(File dir){
+		// Only try two levels
+		// Level == 2, dir == type
+		// Level == 1, dir == package
+		// Level == 0, dir == root (stop here)
 		
+		removeEmptyDirectoryRecursive(dir, 2);
+	}
+	
+	private static void removeEmptyDirectoryRecursive(File dir, int levels){
+		// Don't go any higher
+		if (levels == 0){
+			return;
+		} 
+		
+		// If empty, delete, call on parent
 		if(dir.listFiles().length == 0) {
 			dir.delete();
-			recursiveRemoveDir(dir.getParentFile());
+			removeEmptyDirectoryRecursive(dir.getParentFile(), levels - 1);
 		}
 	}
 	
@@ -439,29 +454,13 @@ public class ServerUtils {
 	 * null if it fails, and the new file should not be added to the system
 	 */
 	
-	public static String newFilename(String targetFilePath)
-	{
-		String testPath = targetFilePath;
-		if (testPath.substring(testPath.lastIndexOf(".")) != ".pipe")
-			return null; // The file can be parse, but it has wrong extension
-
-		File readyFile = new File(testPath);
-		if (!readyFile.exists())
-			return testPath;
-		else
-		{
-			// <root>/<pkg>/<mod>/my = testPart
-			String testPathPart = testPath.substring(0, testPath.lastIndexOf("."));
-			String ext = ".pipe";
-			
-			for (int i = 2 ;; i++)
-			{
-				testPath = testPathPart + "_(" + i + ")" + ext;
-				readyFile = new File(testPath);
-				if (!readyFile.exists())
-					return testPath;
-			}
-			
+	public static String newFilename(String absolutePath){
+		File readyFile = new File(absolutePath);
+		
+		if (!readyFile.exists()){
+			return absolutePath;
+		}
+		else {
 			/*
 			 * The code above will try:
 			 * <root>/<pkg>/<mod>/my.pipe
@@ -470,6 +469,17 @@ public class ServerUtils {
 			 * ...
 			 */
 			
+			String testPathPart = absolutePath.substring(0, absolutePath.lastIndexOf(".pipe"));
+			String ext = ".pipe";
+			
+			for (int i = 2 ;; i++){
+				String newAbsolutePath = testPathPart + "_(" + i + ")" + ext;
+				readyFile = new File(newAbsolutePath);
+				
+				if (!readyFile.exists()){
+					return newAbsolutePath;
+				}
+			}			
 		}
 	}
 }
