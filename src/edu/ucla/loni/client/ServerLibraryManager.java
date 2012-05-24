@@ -48,6 +48,7 @@ import com.smartgwt.client.widgets.Label;
 import com.smartgwt.client.widgets.form.DynamicForm;
 import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
 import com.smartgwt.client.widgets.form.fields.FormItem;
+import com.smartgwt.client.widgets.form.fields.SelectItem;
 import com.smartgwt.client.widgets.form.fields.StaticTextItem;
 import com.smartgwt.client.widgets.form.fields.TextAreaItem;
 import com.smartgwt.client.widgets.form.fields.TextItem;
@@ -1142,7 +1143,7 @@ public class ServerLibraryManager implements EntryPoint {
 		tags.setWidth(width);
 		tags.setHint("Comma separated list");
 		
-		ComboBoxItem formatType = new ComboBoxItem();  
+		SelectItem formatType = new SelectItem();  
         formatType.setTitle("Value Format Type");  
         formatType.setType("comboBox");  
         formatType.setName("formatType");
@@ -1217,10 +1218,10 @@ public class ServerLibraryManager implements EntryPoint {
 					pipe.valuesPrefix = m.getGroup(1);
 				}
 			}
-			
-			form.setValue("valuesPrefix", pipe.valuesPrefix);
-			form.setValue("values", valString);
 			form.setValue("formatType", pipe.formatType);
+			if(pipe.formatType.equals("File") || pipe.formatType.equals("Directory"))
+				form.setValue("valuesPrefix", pipe.valuesPrefix);
+			form.setValue("values", valString);
 		}
 		else{
 			form.hideItem("values");
