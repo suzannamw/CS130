@@ -6,7 +6,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.sql.Timestamp;
+
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.jdom2.Document;
@@ -332,8 +334,49 @@ public class ServerUtils {
 	}
 	
 	//************************************************************
+	// Monitor File
+	//************************************************************
+	
+	private static String monitorRelativePath = ".monitorfile";
+	
+	//------------------------------------------------------------
+	// Get 
+	//------------------------------------------------------------
+	
+	public static File getMonitorFile(Directory dir){
+		return new File(dir.absolutePath + File.separator + monitorRelativePath);
+	}
+	
+	//------------------------------------------------------------
+	// Touch 
+	//------------------------------------------------------------
+	
+	public static void touchMonitorFile(Directory dir) throws Exception{
+		// Current time
+		Date now = new Date();
+		
+		File monitor = getMonitorFile(dir);
+		monitor.setLastModified( now.getTime() );
+		
+		// Update the database
+		dir.monitorModified = new Timestamp(monitor.lastModified());
+		Database.updateDirectory(dir);
+	}
+	
+	//************************************************************
 	// Access File
 	//************************************************************
+	
+	private static String accessRelativePath = ".access.xml";
+	
+	//------------------------------------------------------------
+	// Get 
+	//------------------------------------------------------------
+	
+	public static File getAccessFile(Directory dir){
+		return new File(dir.absolutePath + File.separator + accessRelativePath);
+	}
+	
 	
 	//------------------------------------------------------------
 	// Read 
@@ -369,12 +412,11 @@ public class ServerUtils {
 	 * @throws Exception 
 	 */
 	public static void writeAccessFile(Directory root) throws Exception{
-		String accessFilePath = root.absolutePath + "/.access.xml";
-		File f = new File(accessFilePath);
+		File accessFile = getAccessFile(root);
 		
 		// If the path doesn't exist return
-		if (!f.exists()){
-			boolean success = f.createNewFile();
+		if (!accessFile.exists()){
+			boolean success = accessFile.createNewFile();
 			if (!success){
 				throw new Exception ("Could not create access file");
 			}
@@ -445,10 +487,10 @@ public class ServerUtils {
 		}
 		
 		// Write document
-		writeXML(f, doc);
+		writeXML(accessFile, doc);
 		
 		// Update when the access file was written
-		root.accessModified = new Timestamp( f.lastModified() );
+		root.accessModified = new Timestamp( accessFile.lastModified() );
 		Database.updateDirectory(root);
 	}
 	

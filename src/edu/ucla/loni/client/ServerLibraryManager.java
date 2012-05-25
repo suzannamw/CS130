@@ -18,7 +18,6 @@ import com.google.gwt.regexp.shared.SplitResult;
 
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Timer;
-import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.google.gwt.user.client.ui.FileUpload;
 import com.google.gwt.user.client.ui.FormPanel;
@@ -35,6 +34,7 @@ import com.smartgwt.client.types.KeyNames;
 import com.smartgwt.client.types.ListGridComponent;
 import com.smartgwt.client.types.SelectionAppearance;
 import com.smartgwt.client.types.VerticalAlignment;
+import com.smartgwt.client.util.BooleanCallback;
 import com.smartgwt.client.util.SC;
 import com.smartgwt.client.util.ValueCallback;
 
@@ -45,6 +45,7 @@ import com.smartgwt.client.widgets.events.ResizedHandler;
 import com.smartgwt.client.widgets.Button;
 import com.smartgwt.client.widgets.Dialog;
 import com.smartgwt.client.widgets.Label;
+import com.smartgwt.client.widgets.Window;
 import com.smartgwt.client.widgets.form.DynamicForm;
 import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
 import com.smartgwt.client.widgets.form.fields.FormItem;
@@ -59,6 +60,8 @@ import com.smartgwt.client.widgets.form.fields.events.KeyUpHandler;
 import com.smartgwt.client.widgets.grid.ListGrid;
 import com.smartgwt.client.widgets.grid.ListGridField;
 import com.smartgwt.client.widgets.grid.ListGridRecord;
+import com.smartgwt.client.widgets.grid.events.RecordClickEvent;
+import com.smartgwt.client.widgets.grid.events.RecordClickHandler;
 import com.smartgwt.client.widgets.grid.events.RecordDoubleClickEvent;
 import com.smartgwt.client.widgets.grid.events.RecordDoubleClickHandler;
 import com.smartgwt.client.widgets.grid.events.SelectionUpdatedEvent;
@@ -93,7 +96,7 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   Default Root Directory
 	 */
-	private String rootDirectoryDefault = "/usr/share/tomcat6/CraniumLibrary";
+	private String rootDirectoryDefault = "C:\\Users\\charlie\\Desktop\\Test"; //"/usr/share/tomcat6/CraniumLibrary";
 	
 	/**
 	 *   Current Root Directory
@@ -101,9 +104,18 @@ public class ServerLibraryManager implements EntryPoint {
 	private Directory rootDirectory = null;
 	
 	/**
-	 *  Current Root Directory Display 
+	 *  Label displaying the current root directory
 	 */
 	private Label rootDirectoryDisplay = new Label(rootDirectoryDefault);
+	
+	/**
+	 *  Label displaying the number of selected files
+	 *  <p>
+	 *  Set in: onModuleLoad
+	 *  <br>
+	 *  Updated in: updateSelected;
+	 */
+	private Label numSelectedLabel = new Label("0 File(s) Selected");
 	
 	/**
 	 *   Workarea
@@ -262,6 +274,7 @@ public class ServerLibraryManager implements EntryPoint {
 		selected = selectedList.toArray(selected);
 		
 		int numSelected = selected.length;
+		numSelectedLabel.setContents(numSelected + " File(s) Selected");
 		
 		if (numSelected == 0){
 			basicInstructions();
@@ -433,7 +446,7 @@ public class ServerLibraryManager implements EntryPoint {
 		rootDirectoryDisplay.setHeight(40);
 		rootDirectoryDisplay.setAlign(Alignment.CENTER);
 		rootDirectoryDisplay.setValign(VerticalAlignment.TOP);
-		rootDirectoryDisplay.setStyleName("root-directory");
+		rootDirectoryDisplay.setStyleName("largerFont");
 		
 		// Left -- Root Directory -- Form
 		final TextItem rootNew = new TextItem();
@@ -514,6 +527,11 @@ public class ServerLibraryManager implements EntryPoint {
 	    treeGrid.addSelectionUpdatedHandler(selectedPipefilesHandler);
 	    treeGrid.addNodeContextClickHandler(contextClickHandler);
 	    
+	    // Left -- Selected Files
+	    numSelectedLabel.setHeight(25);
+	    numSelectedLabel.setAlign(Alignment.CENTER);
+	    numSelectedLabel.setStyleName("largerFont");
+	    
 	    // Left 	    
 	    final VLayout left = new VLayout();
 	    left.setShowResizeBar(true);
@@ -530,6 +548,7 @@ public class ServerLibraryManager implements EntryPoint {
 	    left.addMember(searchForm);
 	    left.addMember(toolStrip);
 	    left.addMember(treeGrid);
+	    left.addMember(numSelectedLabel);
 	    
 	    left.addResizedHandler(new ResizedHandler() {
 	    	public void onResized (ResizedEvent event){
@@ -615,10 +634,11 @@ public class ServerLibraryManager implements EntryPoint {
 	        	} 
 	        	else {
 	        		// Ask for new root directory
-	        		
 	        		Dialog dialog = new Dialog();
 	        		dialog.setWidth(300);
 	        		dialog.setShowCloseButton(false);
+	        		dialog.setShowModalMask(true);
+	        		dialog.setButtons(Dialog.OK);
 	        		
 	        		SC.askforValue(
 	        			"Invalid Root Directory",
@@ -724,20 +744,31 @@ public class ServerLibraryManager implements EntryPoint {
 	}
 	
 	/**
-	 * Makes the RPC to removeFiles
+	 * Makes the RPC to removeFiles, after confirmation
 	 */
 	private void removeFiles(final Pipefile[] selected){
-		fileServer.removeFiles(rootDirectory, selected, new AsyncCallback<Void>() {
-        	public void onFailure(Throwable caught) {
-		        error("Failed to remove file(s): " + caught.getMessage());
-		    }
-
-		    public void onSuccess(Void result){
-		    	success("Successfully removed " + selected.length + " file(s).");
-		    	updateFullTree();
-		    	basicInstructions();
-		    }
-		});
+		SC.confirm(
+			"Confirm Remove",
+			"Please confirm that you want to remove the "
+				+ selected.length + " selected file(s)",
+			new BooleanCallback(){
+				public void execute(Boolean value) {
+					if (value){
+						fileServer.removeFiles(rootDirectory, selected, new AsyncCallback<Void>() {
+							public void onFailure(Throwable caught) {
+								error("Failed to remove file(s): " + caught.getMessage());
+							}
+							
+							public void onSuccess(Void result){
+								success("Successfully removed " + selected.length + " file(s).");
+								updateFullTree();
+								basicInstructions();
+							}
+						});
+					}
+				}
+			}
+		);
 	}
 	
 	/**
@@ -758,20 +789,31 @@ public class ServerLibraryManager implements EntryPoint {
 	}
 	
 	/**
-	 * Makes the RPC to moveFiles
+	 * Makes the RPC to moveFiles, after confirmation
 	 */
 	private void moveFiles(final Pipefile[] selected, final String packageName){
-		fileServer.moveFiles(rootDirectory, selected, packageName, new AsyncCallback<Void>() {
-			public void onFailure(Throwable caught) {
-		        error("Failed to move file(s): " + caught.getMessage());
-		    }
-
-		    public void onSuccess(Void result){
-		    	success("Successfully moved " + selected.length + " file(s) to " + packageName + ".");
-		    	updateFullTree();
-		    	basicInstructions();
-		    }
-		});
+		SC.confirm(
+			"Confirm Move", 
+			"Please confirm that you want to move the " + 
+					selected.length + " selected file(s) to " + packageName,
+			new BooleanCallback(){
+				public void execute(Boolean value) {
+					if (value){
+						fileServer.moveFiles(rootDirectory, selected, packageName, new AsyncCallback<Void>() {
+							public void onFailure(Throwable caught) {
+						        error("Failed to move file(s): " + caught.getMessage());
+						    }
+				
+						    public void onSuccess(Void result){
+						    	success("Successfully moved " + selected.length + " file(s) to " + packageName + ".");
+						    	updateFullTree();
+						    	basicInstructions();
+						    }
+						});
+					}
+				}
+			}
+		);
 	}
 	
 	/**
@@ -818,8 +860,8 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 * Makes the RPC to getGroups
 	 */
-	private void removeGroups(final Group[] groups){		
-		fileServer.removeGroups(rootDirectory, groups, new AsyncCallback<Void>(){
+	private void removeGroups(final Group[] groups, boolean deleteReferences){
+		fileServer.removeGroups(rootDirectory, groups, deleteReferences, new AsyncCallback<Void>(){
 			public void onFailure(Throwable caught) {
 	        	error("Failed to remove groups: "+ caught.getMessage());
 	        }
@@ -843,7 +885,7 @@ public class ServerLibraryManager implements EntryPoint {
 			url += "&filename_" + i + "=" + URL.encode(filename);
 		}
 		
-		Window.open(url, "downloadWindow", "");
+		com.google.gwt.user.client.Window.open(url, "downloadWindow", "");
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -940,7 +982,7 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *  Adds file operations (download, remove, copy, move) to the workarea 
 	 */
-	private void fileOperationsActions(final Pipefile[] selected){
+	private void fileOperationsActions(final Pipefile[] pipefiles){
 		// Title
 		Label workareaTitle = new Label("File Operations");
 		workareaTitle.setHeight(20);
@@ -962,25 +1004,31 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		remove.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				removeFiles(selected);
+				removeFiles(pipefiles);
 			}
 		});
 		
 		download.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				downloadFiles(selected);
+				downloadFiles(pipefiles);
 			}
 		});
 		
 		copy.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				copyFiles(selected, combo.getDisplayValue());
+				String value = combo.getValueAsString();
+				if (!value.equals("")){
+					copyFiles(pipefiles, value);
+				}
 			}
 		});
 		
 		move.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
-				moveFiles(selected, combo.getDisplayValue());
+				String value = combo.getValueAsString();
+				if (!value.equals("")){
+					moveFiles(pipefiles, value);
+				}
 			}
 		});
 		
@@ -1024,9 +1072,9 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *  Adds a list of the selected files to the workarea
 	 */
-	private void fileOperationsSelectedFiles(final Pipefile[] selected){
+	private void fileOperationsSelectedFiles(final Pipefile[] pipefiles){
 		// Title
-		Label selectedTitle = new Label("Selected Files");
+		Label selectedTitle = new Label("Selected Files (" + pipefiles.length + ")");
 		selectedTitle.setHeight(20);
 		selectedTitle.setStyleName("workarea-title");
 		workarea.addMember(selectedTitle);
@@ -1039,20 +1087,32 @@ public class ServerLibraryManager implements EntryPoint {
 		ListGridField tField = new ListGridField("type", "Type");
 		grid.setFields(nField, pField, tField);
         
-		ListGridRecord[] records = new ListGridRecord[selected.length];
+		ListGridRecord[] records = new ListGridRecord[pipefiles.length];
 		
-		for(int i = 0; i < selected.length; i++){			
-			Pipefile pipe = selected[i];
+		for(int i = 0; i < pipefiles.length; i++){			
+			Pipefile pipe = pipefiles[i];
 			
 			ListGridRecord record = new ListGridRecord();
 			record.setAttribute("name", pipe.name);
 			record.setAttribute("packageName", pipe.packageName);
 			record.setAttribute("type", pipe.type);
+			record.setAttribute("fileId", pipe.fileId);
 			
 			records[i] = record;
 		}
 		
 		grid.setData(records);
+		
+		grid.addRecordClickHandler(new RecordClickHandler(){
+			public void onRecordClick(RecordClickEvent event) {
+				Record clicked = event.getRecord();
+				int fileId = clicked.getAttributeAsInt("fileId");
+				Pipefile pipe = pipes.get(fileId);
+				
+				selected = new Pipefile[] { pipe };
+				viewFile(pipe);
+			}
+		});
 		
 		workarea.addMember(grid);
 	}
@@ -1061,11 +1121,11 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Sets workarea to file Operations (download, remove, copy, move)
 	 *    and a list of the selected files
 	 */
-	private void fileOperations(final Pipefile[] selected){
+	private void fileOperations(final Pipefile[] pipefiles){
 		clearWorkarea();
 		
-		fileOperationsActions(selected);
-		fileOperationsSelectedFiles(selected);
+		fileOperationsActions(pipefiles);
+		fileOperationsSelectedFiles(pipefiles);
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -1393,10 +1453,7 @@ public class ServerLibraryManager implements EntryPoint {
 			ListGridRecord record = new ListGridRecord();
 			record.setAttribute("name", group.name);
 			record.setAttribute("users", group.users);
-			
-			if (group.canRemove == false){
-				record.setAttribute("canSelect", false);
-			}
+			record.setAttribute("dependencies", group.dependencies);
 			
 			records[i++] = record;
 		}
@@ -1436,15 +1493,76 @@ public class ServerLibraryManager implements EntryPoint {
 				ListGridRecord[] selected = grid.getSelectedRecords();
 				
 				if (selected != null && selected.length > 0){
-					Group[] toRemove = new Group[selected.length];
+					final Group[] toRemove = new Group[selected.length];
+					
+					boolean extraCheck = false;
 					
 					int i = 0;
 					for(ListGridRecord r : selected){
 						String name = r.getAttribute("name");
+						
+						Group g = groups.get(name);
+						if (g.dependencies){
+							extraCheck = true;
+						}
+						
 						toRemove[i++] = groups.get(name);
 					}
 					
-					removeGroups(toRemove);
+					// Check how to resolve dependencies
+					if (extraCheck){
+						final Window w = new Window();
+						w.setWidth(600);
+						w.setHeight(200);
+						w.setTitle("Resolve Group Dependencies");
+						w.setIsModal(true);
+						w.setShowModalMask(true);
+						w.setShowCloseButton(false);
+						w.centerInPage();
+						
+						HLayout buttonRow = new HLayout(10);
+						buttonRow.setAlign(Alignment.CENTER);
+						
+						Button deleteAllReferences = new Button("Delete all references");
+						deleteAllReferences.setWidth(125);
+						deleteAllReferences.addClickHandler(new ClickHandler(){
+							public void onClick(ClickEvent event) {
+								removeGroups(toRemove, true);
+							}
+						});
+						buttonRow.addMember(deleteAllReferences);
+						
+						Button deleteGroupOnly = new Button("Delete group only");
+						deleteGroupOnly.addClickHandler(new ClickHandler(){
+							public void onClick(ClickEvent event) {
+								removeGroups(toRemove, false);
+							}
+						});
+						buttonRow.addMember(deleteGroupOnly);
+						
+						Button cancel = new Button("Cancel");
+						cancel.addClickHandler(new ClickHandler(){
+							public void onClick(ClickEvent event) {
+								w.clear();
+							}
+						});
+						buttonRow.addMember(cancel);
+						
+						Label title = new Label(
+							"One or more of the selected groups is referenced in " +
+							"file access restrictions or the definition of another group.<br/>" +
+							"How would you like to proceed?"
+						);
+						title.setAlign(Alignment.CENTER);
+						
+						VLayout layout = new VLayout();
+						layout.setMargin(10);
+						layout.addMember(title);
+						layout.addMember(buttonRow);
+						
+						w.addItem(layout);
+						w.show();
+					}
 				}
 			}
 		});
@@ -1516,9 +1634,6 @@ public class ServerLibraryManager implements EntryPoint {
 				
 				if (g.name == null || g.name.equals("")){
 					SC.say("Name cannot be blank"); 
-				}
-				else if (g.users == null || g.users.equals("")){
-					SC.say("Users cannot be blank"); 
 				}
 				else if (newGroup && groups.containsKey(g.name)){
 					SC.say("Name (" + g.name + ") is already in use. Please choose another name."); 
