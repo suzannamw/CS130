@@ -93,6 +93,8 @@ public class Upload extends HttpServlet {
 					// Uploaded File
 					if (item.isFormField() == false){
 						String filename = item.getName();;
+						if( filename.equals("") == true )
+							continue;
 						try {
 							InputStream in = item.getInputStream();
 							
