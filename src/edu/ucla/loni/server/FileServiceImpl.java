@@ -75,16 +75,16 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	private void updateDatabase(Directory root) throws Exception {
 		// Get the time the monitor file was modified
 		Timestamp monitorModified = null;
-		File monitor = new File(root.absolutePath + File.separator + ".monitorfile");
-		if (monitor.exists()){
-			monitorModified = new Timestamp(monitor.lastModified());
+		File monitorFile = ServerUtils.getMonitorFile(root);
+		if (monitorFile.exists()){
+			monitorModified = new Timestamp(monitorFile.lastModified());
 		}
 		
 		// Get the time the access file was modified
 		Timestamp accessModified = null;
-		File access = new File(root.absolutePath + File.separator + ".access.xml");
-		if (access.exists()){
-			accessModified = new Timestamp(access.lastModified());
+		File accessFile = ServerUtils.getAccessFile(root);
+		if (accessFile.exists()){
+			accessModified = new Timestamp(accessFile.lastModified());
 		}
 		
 		// If use monitor file has not changed
@@ -146,6 +146,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		} else {
 			ServerUtils.writeAccessFile(root);
 		}
+	}
+	
+	private void updateMonitorAndAccessFile(Directory root) throws Exception{
+		ServerUtils.touchMonitorFile(root);
+		ServerUtils.writeAccessFile(root);
 	}
 	
 	/**
@@ -402,8 +407,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			// Update Group Dependencies
 			updateGroupDependencies(1, pipe.fileId, pipe.access);
 			
-			// Write the access file
-			ServerUtils.writeAccessFile(root);
+			// Update monitor and access files
+			updateMonitorAndAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -424,8 +429,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				removeFile(root, pipe);
 			}
 			
-			// Write the access file
-			ServerUtils.writeAccessFile(root);	
+			// Update monitor and access files
+			updateMonitorAndAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -445,8 +450,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				copyFile(root, pipe, packageName);
 			}
 
-			// Write the access file
-			ServerUtils.writeAccessFile(root);
+			// Update monitor and access files
+			updateMonitorAndAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -467,8 +472,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				moveFile(root, pipe, packageName);
 			}
 			
-			// Write the access file
-			ServerUtils.writeAccessFile(root);
+			// Update monitor and access files
+			updateMonitorAndAccessFile(root);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -506,6 +511,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			// Update Group Dependences
 			updateGroupDependencies(0, group.groupId, group.users);
 			
+			// TODO update files and groups that reference this group
+			
 			// Write the access file
 			ServerUtils.writeAccessFile(root);
 		} 
@@ -519,11 +526,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Deletes groups on the server (also used for creating groups)
 	 *  @param group group to be updated
 	 */
-	public void	removeGroups(Directory root, Group[] groups) throws Exception{
-		try {
+	public void	removeGroups(Directory root, Group[] groups, boolean deleteReferences) throws Exception{
+		try {			
 			// Delete each group
 			for (Group group: groups){
 				Database.deleteGroup(group);
+				
+				// TODO update files and groups that reference this group
 			}
 			
 			// Write the access file

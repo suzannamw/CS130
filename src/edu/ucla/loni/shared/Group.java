@@ -9,13 +9,13 @@ public class Group implements Serializable {
 	public String name;
 	public String users;
 	
-	public boolean canRemove;
+	public boolean dependencies;
 	
 	public Group() {
 		groupId = -1;
 		name = "";
 		users = "";
-		canRemove = true;
+		dependencies = false;
 	}
 }
 

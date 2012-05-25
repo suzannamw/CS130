@@ -306,7 +306,7 @@ public class Database {
 			g.groupId = rs.getInt(1);
 			g.name = rs.getString(2);
 			g.users = rs.getString(3);
-			g.canRemove = ( rs.getInt(4) == 0 );
+			g.dependencies = ( rs.getInt(4) != 0 );
 			
 			list.add(g);
 		}

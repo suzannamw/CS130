@@ -20,5 +20,5 @@ public interface FileServiceAsync {
 	void getGroups(Directory root, AsyncCallback<Group[]> callback);
 	
 	void updateGroup(Directory root, Group g, AsyncCallback<Void> callback);
-	void removeGroups(Directory root, Group[] groups, AsyncCallback<Void> callback);
+	void removeGroups(Directory root, Group[] groups, boolean deleteReferences, AsyncCallback<Void> callback);
 }
