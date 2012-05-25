@@ -1,15 +1,13 @@
 package edu.ucla.loni.server;
 
+import edu.ucla.loni.client.FileService;
+import edu.ucla.loni.shared.*;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-
 import java.sql.Timestamp;
-
 import java.util.ArrayList;
-
-import edu.ucla.loni.client.FileService;
-import edu.ucla.loni.shared.*;
 
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 
@@ -58,8 +56,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Remove files from the database in the case that they were deleted
 	 */
-	private void cleanDatabase(int dirId) throws Exception{
-		Pipefile[] pipes = Database.selectPipefiles(dirId);
+	private void cleanDatabase(Directory root) throws Exception{
+		Pipefile[] pipes = Database.selectPipefiles(root.dirId);
+		
 		if (pipes != null){
 			for(Pipefile pipe : pipes){
 				File file = new File(pipe.absolutePath);
@@ -71,44 +70,38 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
-	 *  Update the database for this root folder 
-	 *  @param root absolute path of the root directory
+	 *  Update the database for this root
 	 */
-	private void updateDatabase(File rootDir, boolean useMonitorFile) throws Exception {
-		// Get the monitor file and access file
+	private void updateDatabase(Directory root) throws Exception {
+		// Get the time the monitor file was modified
 		Timestamp monitorModified = null;
-		File monitor = new File(rootDir.getAbsoluteFile() + File.separator + ".monitorfile");
+		File monitor = new File(root.absolutePath + File.separator + ".monitorfile");
 		if (monitor.exists()){
 			monitorModified = new Timestamp(monitor.lastModified());
 		}
 		
+		// Get the time the access file was modified
 		Timestamp accessModified = null;
-		File access = new File(rootDir.getAbsoluteFile() + File.separator + ".access.xml");
+		File access = new File(root.absolutePath + File.separator + ".access.xml");
 		if (access.exists()){
 			accessModified = new Timestamp(access.lastModified());
 		}
 		
-		// Get the directory from the database, insert if null
-		Directory dir = Database.selectDirectory(rootDir.getAbsolutePath());
-		if (dir == null){			
-			Database.insertDirectory(rootDir.getAbsolutePath(), monitorModified, accessModified);
-			dir = Database.selectDirectory(rootDir.getAbsolutePath());
-		}
-		
 		// If use monitor file and it has not changed
-		if (useMonitorFile && monitorModified != null){
-			if (monitorModified.equals(dir.monitorModified)){
+		if (monitorModified != null){
+			if (monitorModified.equals(root.monitorModified)){
 				return;
 			} else {
-				dir.monitorModified = monitorModified;
-				Database.updateDirectory(dir);
+				root.monitorModified = monitorModified;
+				Database.updateDirectory(root);
 			}
 		}
 		
 		// Clean the database
-		cleanDatabase(dir.dirId);
+		cleanDatabase(root);
 		
 		// Update all files
+		File rootDir = new File(root.absolutePath);
 		ArrayList<File> files = getAllPipefiles(rootDir);
 				
 		// For each pipefile
@@ -136,7 +129,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		    	Pipefile pipe = ServerUtils.parse(file);
 				
 				if (insert){
-					Database.insertPipefile(dir.dirId, pipe, fs_lastModified);
+					Database.insertPipefile(root.dirId, pipe, fs_lastModified);
 					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
 				} else {
 					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
@@ -148,10 +141,10 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		}
 		
 		// If access exists and has been changed
-		if (accessModified != null && accessModified.before(dir.accessModified)){
+		if (accessModified != null && accessModified.before(root.accessModified)){
 			// TODO readAccessFile
 		} else {
-			ServerUtils.writeAccessFile(dir.absolutePath);
+			ServerUtils.writeAccessFile(root);
 		}
 	}
 	
@@ -159,7 +152,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Removes a file from the server
 	 *  @param filename absolute path of the file
 	 */
-	private void removeFile(String root, Pipefile pipe) throws Exception {		
+	private void removeFile(Directory root, Pipefile pipe) throws Exception {		
 		File f = new File(pipe.absolutePath);
 		if (f.exists()){
 			// Delete file on file-system
@@ -200,7 +193,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filename absolute path of the file
 	 *  @param packageName absolute path of the package
 	 */
-	private void copyFile(String root, Pipefile pipe, String packageName) throws Exception {
+	private void copyFile(Directory root, Pipefile pipe, String packageName) throws Exception {
 		copyOrMoveFile(root, pipe, packageName, true);
 	}
 	
@@ -210,11 +203,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param packageName is the name of the package as it appears in the Database in column PACKAGENAME
 	 *  @throws Exception 
 	 */
-	public void moveFile(String root, Pipefile pipe, String packageName) throws Exception{
+	public void moveFile(Directory root, Pipefile pipe, String packageName) throws Exception{
 		copyOrMoveFile(root, pipe, packageName, false);
 	}
 	
-	private void copyOrMoveFile(String root, Pipefile pipe, String packageName, boolean copy) throws Exception{
+	private void copyOrMoveFile(Directory root, Pipefile pipe, String packageName, boolean copy) throws Exception{
 		// Source
 		String oldAbsolutePath = pipe.absolutePath;
 		File src = new File(oldAbsolutePath);
@@ -225,15 +218,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		}
 		
 		// Destination
-		String filename = src.getName();
-		String newAbsolutePath = ServerUtils.newAbsolutePath(root, packageName, pipe.type, filename);
-		File dest = new File(newAbsolutePath);
-		
-		// If the destination exists, get the next available filename
-		if (dest.exists()) {
-			newAbsolutePath = ServerUtils.newFilename(newAbsolutePath);
-			dest = new File(newAbsolutePath);
-		}
+		String destPath = ServerUtils.newAbsolutePath(root.absolutePath, packageName, pipe.type, pipe.name);
+		File dest = new File(destPath);
 		
 		// If the destination directory does not exist, create it and necessary parent directories
 		File destDir = dest.getParentFile();
@@ -261,7 +247,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		} 
 		else {
 			boolean success = src.renameTo(dest);
-			if(success == false) {
+			if(!success) {
 				throw new Exception("File could not be moved");
 			}
 		}
@@ -271,7 +257,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		
 		// Update Pipefile
 		pipe.packageName = packageName;
-		pipe.absolutePath = newAbsolutePath;
+		pipe.absolutePath = destPath;
 				
 		// Update XML
 		Document doc = ServerUtils.readXML(dest);
@@ -281,8 +267,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		// Update Database
 		Timestamp modified = new Timestamp(dest.lastModified());
 		if (copy) {
-			Directory dir = Database.selectDirectory(root);
-			Database.insertPipefile(dir.dirId, pipe, modified);
+			Database.insertPipefile(root.dirId, pipe, modified);
 		} 
 		else {
 			Database.updatePipefile(pipe, modified);
@@ -299,18 +284,54 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Thus the children are the packages
 	 *  @param root the absolute path of the root directory
 	 */
-	public Pipefile[] getFiles(String root, boolean useMonitorFile) throws Exception {
+	public Directory getDirectory(String absolutePath) throws Exception {
 		try {
-			File rootDir = new File(root);
+			File rootDir = new File(absolutePath);
 			if (rootDir.exists() && rootDir.isDirectory()){
-				updateDatabase(rootDir, useMonitorFile);
+				Directory root = Database.selectDirectory(rootDir.getAbsolutePath());
 				
-				Directory dir = Database.selectDirectory(rootDir.getAbsolutePath());
+				if (root == null){
+					// Get the time the monitor file was modified
+					Timestamp monitorModified = null;
+					File monitor = new File(absolutePath + File.separator + ".monitorfile");
+					if (monitor.exists()){
+						monitorModified = new Timestamp(monitor.lastModified());
+					}
+					
+					// Get the time the access file was modified
+					Timestamp accessModified = null;
+					File access = new File(absolutePath + File.separator + ".access.xml");
+					if (access.exists()){
+						accessModified = new Timestamp(access.lastModified());
+					}
+					
+					Database.insertDirectory(rootDir.getAbsolutePath(), monitorModified, accessModified);
+					root = Database.selectDirectory(rootDir.getAbsolutePath());
+				}
 				
-				return Database.selectPipefiles(dir.dirId);
-			} else {
+				return root;
+			} 
+			else {
 				return null;
 			}
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+			throw new Exception(e.getMessage());
+		}
+	}
+	
+	/**
+	 *  Returns a FileTree that represents the root directory
+	 *  <br>
+	 *  Thus the children are the packages
+	 *  @param root the absolute path of the root directory
+	 */
+	public Pipefile[] getFiles(Directory root) throws Exception {
+		try {
+			updateDatabase(root);
+				
+			return Database.selectPipefiles(root.dirId);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -323,10 +344,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param root the absolute path of the root directory
 	 *  @param query what the user is searching for
 	 */
-	public Pipefile[] getSearchResults(String root, String query) throws Exception{
+	public Pipefile[] getSearchResults(Directory root, String query) throws Exception{
 		try {
-			Directory dir = Database.selectDirectory(root); 
-			return Database.selectPipefilesSearch(dir.dirId, query);
+			return Database.selectPipefilesSearch(root.dirId, query);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -338,16 +358,28 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Updates the file on the server
 	 *  @param pipe Pipefile representing the updated file
 	 */
-	public void updateFile(String root, Pipefile pipe) throws Exception{
+	public void updateFile(Directory root, Pipefile pipe) throws Exception{
 		try {
-			// Update the XML
 			File file = new File(pipe.absolutePath);
-			if (!file.exists() || !file.canRead())
-				return;
 			
+			// Update the XML
 			Document doc = ServerUtils.readXML(file);
 			doc = ServerUtils.update(doc, pipe, false);
 			ServerUtils.writeXML(file, doc);
+			
+			// Update the filename if the name changed
+			if (pipe.nameUpdated){
+				String destPath = ServerUtils.newAbsolutePath(root.absolutePath, pipe.packageName, pipe.type, pipe.name);
+				File dest = new File(destPath);
+				
+				boolean success = file.renameTo(dest);
+				if(!success) {
+					throw new Exception("Failed to rename file");
+				}
+				
+				file = dest;
+				pipe.absolutePath = destPath;
+			}
 			
 			// Update the database
 			Timestamp modified = new Timestamp(file.lastModified());
@@ -362,7 +394,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			// If package updated, move the file
 			if (pipe.packageUpdated){
 				moveFile(root, pipe, pipe.packageName);
-			}
+			} 
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -376,7 +408,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filenames absolute paths of the files
 	 * @throws SQLException 
 	 */
-	public void removeFiles(String root, Pipefile[] pipes) throws Exception {
+	public void removeFiles(Directory root, Pipefile[] pipes) throws Exception {
 		try {
 			// Remove each file
 			for (Pipefile pipe : pipes) {
@@ -397,7 +429,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filenames absolute paths of the files
 	 *  @param packageName absolute path of the package
 	 */
-	public void copyFiles(String root, Pipefile[] pipes, String packageName) throws Exception {		
+	public void copyFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception {		
 		try {
 			// Copy each file
 			for (Pipefile pipe : pipes) {
@@ -419,7 +451,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param packageName absolute path of the package
 	 *  @throws Exception 
 	 */
-	public void moveFiles(String root, Pipefile[] pipes, String packageName) throws Exception{
+	public void moveFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception{
 		try {
 			// Move each file
 			for (Pipefile pipe : pipes) {
@@ -438,10 +470,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Returns an array of all the groups
 	 */
-	public Group[] getGroups(String root) throws Exception {
+	public Group[] getGroups(Directory root) throws Exception {
 		try {
-			Directory dir = Database.selectDirectory(root);
-			return Database.selectGroups(dir.dirId);
+			return Database.selectGroups(root.dirId);
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -453,13 +484,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Inserts or Updates a group on the server (also used for creating groups)
 	 *  @param group group to be updated
 	 */
-	public void	updateGroup(String root, Group group) throws Exception{
-		try {
-			Directory dir = Database.selectDirectory(root);
-			
+	public void	updateGroup(Directory root, Group group) throws Exception{
+		try {			
 			// Insert or update the group
 			if (group.groupId == -1){
-				Database.insertGroup(dir.dirId, group);
+				Database.insertGroup(root.dirId, group);
 				group.groupId = Database.selectGroupId(group.name);
 			} else {
 				Database.updateGroup(group);
@@ -481,7 +510,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Deletes groups on the server (also used for creating groups)
 	 *  @param group group to be updated
 	 */
-	public void	removeGroups(String root, Group[] groups) throws Exception{
+	public void	removeGroups(Directory root, Group[] groups) throws Exception{
 		try {
 			// Delete each group
 			for (Group group: groups){

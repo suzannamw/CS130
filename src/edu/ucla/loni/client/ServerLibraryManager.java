@@ -98,12 +98,12 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   Current Root Directory
 	 */
-	private String rootDirectory = rootDirectoryDefault;
+	private Directory rootDirectory = null;
 	
 	/**
 	 *  Current Root Directory Display 
 	 */
-	private Label rootDirectoryDisplay = new Label(rootDirectory);
+	private Label rootDirectoryDisplay = new Label(rootDirectoryDefault);
 	
 	/**
 	 *   Workarea
@@ -115,7 +115,7 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 *   Last pipefile that was viewed
 	 */
-	private String lastPipefile = null;
+	private int lastPipefileId = -1;
 	
 	/**
 	 *   Button that allows you to jump back to the last pipefile you viewed
@@ -167,13 +167,13 @@ public class ServerLibraryManager implements EntryPoint {
 	private boolean viewByPackage = true;
 
 	/**
-	 *  String abosolutePath => Pipefile pipe
+	 *  Int fileId => Pipefile pipe
 	 *  <p>
 	 *  Set in: treeRefresh
 	 *  <br>
 	 *  Used in: viewFile, editFile
 	 */
-	private final LinkedHashMap<String, Pipefile> pipes = new LinkedHashMap<String, Pipefile>();
+	private final LinkedHashMap<Integer, Pipefile> pipes = new LinkedHashMap<Integer, Pipefile>();
 	
 	/**
 	 *  String key => TreeNode node, 
@@ -236,9 +236,10 @@ public class ServerLibraryManager implements EntryPoint {
 		ArrayList<Pipefile> ret = new ArrayList<Pipefile>();
 		
 		for (ListGridRecord r : records){
-			String absPath = r.getAttribute("absolutePath");
-			if (absPath != null && !absPath.equals("")){
-				Pipefile p = pipes.get(absPath);
+			int fileId = r.getAttributeAsInt("fileId");
+			
+			if (fileId != -1){
+				Pipefile p = pipes.get(fileId);
 				ret.add(p);
 			}
 			else {
@@ -393,7 +394,7 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		backToLastPipefile.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				viewFile(pipes.get(lastPipefile));
+				viewFile(pipes.get(lastPipefileId));
 			}
 		});
 		
@@ -436,7 +437,6 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		// Left -- Root Directory -- Form
 		final TextItem rootNew = new TextItem();
-		rootNew.setDefaultValue(rootDirectory);
 		rootNew.setShowTitle(false);
 		rootNew.setWidth(280);
 		
@@ -540,7 +540,7 @@ public class ServerLibraryManager implements EntryPoint {
 	    
 	    rootDirectoryDisplay.addClickHandler(new ClickHandler() {
 	    	public void onClick(ClickEvent event){
-	    		rootNew.setValue(rootDirectory);
+	    		rootNew.setValue(rootDirectory.absolutePath);
 	    		
 	    		left.removeMember(rootDirectoryDisplay);
 	    		left.addMember(rootForm, 0);
@@ -555,20 +555,19 @@ public class ServerLibraryManager implements EntryPoint {
             	if (pressed.equals(KeyNames.ENTER)){
             		// Determine if the tree needs to be updated, set the rot directory
 	            	String newRoot = rootNew.getValueAsString();
-	            	boolean updateTree = rootDirectory.equals(newRoot) == false;
-	            	rootDirectory = newRoot;
+	            	String oldRoot = rootDirectory.absolutePath;
+	            	boolean updated = ( ! oldRoot.equals(newRoot) );
             		
             		// Update the view
-	            	rootDirectoryDisplay.setContents(rootDirectory);
-	            	
+	            	rootDirectoryDisplay.setContents(newRoot);
 	            	left.removeMember(rootForm);
             		left.addMember(rootDirectoryDisplay, 0);
         	        
-        	        // Update the tree if need be
-        	        if (updateTree){
-        	        	updateFullTree();
-        	        	basicInstructions();
-        	        }
+            		// Get the directory
+            		if (updated){
+            			getDirectory(newRoot);
+            			basicInstructions();
+            		}
 	            }
             }  
         });
@@ -589,7 +588,7 @@ public class ServerLibraryManager implements EntryPoint {
 	    layout.draw();
 
 	    // Tree Initialization
-	    updateFullTree();
+	    getDirectory(rootDirectoryDefault);
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -599,13 +598,51 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 * Makes the RPC to getFiles
 	 */
+	private void getDirectory(final String absolutePath){
+		fileServer.getDirectory(absolutePath, new AsyncCallback<Directory>() {
+	        public void onFailure(Throwable caught) {
+	        	error("Failed to retrieve directory: " + caught.getMessage());
+	        }
+
+	        public void onSuccess(Directory result) {
+	        	if (result != null){
+	        		// Set the rootDirectory
+	        		rootDirectory = result;
+	        		// Display the rootDirectory
+	        		rootDirectoryDisplay.setContents(rootDirectory.absolutePath);
+	        		// Update the tree
+	        		updateFullTree();
+	        	} 
+	        	else {
+	        		// Ask for new root directory
+	        		
+	        		Dialog dialog = new Dialog();
+	        		dialog.setWidth(300);
+	        		dialog.setShowCloseButton(false);
+	        		
+	        		SC.askforValue(
+	        			"Invalid Root Directory",
+	        			"Root directory does not exist or is not a directory",
+	        			absolutePath,
+	        			new ValueCallback(){
+							public void execute(String value) {
+								getDirectory(value);
+							}
+	        			},
+	        			dialog
+	        		);
+	        	}
+	        }
+	    });
+	}
+	
+	/**
+	 * Makes the RPC to getFiles
+	 */
 	private void getFiles(){
 		pipes.clear();
-		basicInstructions();
 		
-		// TODO, way to choose whether or not to use the monitor file
-		
-		fileServer.getFiles(rootDirectory, false, new AsyncCallback<Pipefile[]>() {
+		fileServer.getFiles(rootDirectory, new AsyncCallback<Pipefile[]>() {
 		        public void onFailure(Throwable caught) {
 		        	error("Failed to retrieve files: " + caught.getMessage());
 		        }
@@ -614,7 +651,7 @@ public class ServerLibraryManager implements EntryPoint {
 		        	if (result != null) {
 		        		LinkedHashSet<String> packageNames = new LinkedHashSet<String>();
 		        		for (Pipefile p : result){
-			        		pipes.put(p.absolutePath, p);
+			        		pipes.put(p.fileId, p);
 			        		packageNames.add(p.packageName);
 			        	}
 		        		
@@ -628,26 +665,7 @@ public class ServerLibraryManager implements EntryPoint {
 		        		sortFullTree();
 		        	} 
 		        	else {
-		        		Dialog dialog = new Dialog();
-		        		dialog.setWidth(446); // Based in the message
-		        		dialog.setShowCloseButton(false);
-		        		
-		        		SC.askforValue(
-		        			"Invalid Root Directory",
-		        			"Root directory does not exist, is not a directory, " +
-		        				"or does not contain any pipefiles.<br/>" +
-		        				"Please specify a new root directory:",
-		        			rootDirectory,
-		        			new ValueCallback(){
-								public void execute(String value) {
-									rootDirectory = value;
-									rootDirectoryDisplay.setContents(value);
-									updateFullTree();
-									basicInstructions();
-								}
-		        			},
-		        			dialog
-		        		);
+		        		SC.say(rootDirectory.absolutePath + " contains no pipefiles");
 		        	}
 		        }
 		    }
@@ -669,12 +687,12 @@ public class ServerLibraryManager implements EntryPoint {
 	        	
 	        	if (result != null){
 	        		for (Pipefile p : result){
-	        			if (pipes.containsKey(p.absolutePath) == false){
-	        				pipes.put(p.absolutePath, p);
+	        			if (pipes.containsKey(p.fileId) == false){
+	        				pipes.put(p.fileId, p);
 	        			}
 		        		
 		        		TreeNode pipe = new TreeNode(p.name);
-		        		pipe.setAttribute("absolutePath", p.absolutePath);
+		        		pipe.setAttribute("fileId", p.fileId);
 		        		pipe.setAttribute("viewable", true);
 		        		
 		        		resultsTree.add(pipe, resultsTree.getRoot());
@@ -695,8 +713,11 @@ public class ServerLibraryManager implements EntryPoint {
 
 		    public void onSuccess(Void result){
 		    	success("Successfully updated " + pipe.name);
-		    	if (pipe.packageUpdated){
+		    	
+		    	// Update the tree and back to basic instructions
+		    	if (pipe.nameUpdated || pipe.packageUpdated){
 		    		updateFullTree();
+		    		basicInstructions();
 		    	}
 		    }
 		});
@@ -857,6 +878,7 @@ public class ServerLibraryManager implements EntryPoint {
     			primaryNode = nodes.get(primaryKey);
     		} else {
     			primaryNode = new TreeNode(primaryName);
+    			primaryNode.setAttribute("fileId", -1);
     			primaryNode.setAttribute("key", primaryKey);
     			primaryNode.setAttribute("viewable", false);
     			primaryNode.setAttribute("moveHere", viewByPackage);
@@ -872,6 +894,7 @@ public class ServerLibraryManager implements EntryPoint {
     			secondaryNode = nodes.get(secondaryKey);
     		} else {
     			secondaryNode = new TreeNode(secondaryName);
+    			secondaryNode.setAttribute("fileId", -1);
     			secondaryNode.setAttribute("key", secondaryKey);
     			secondaryNode.setAttribute("viewable", false);
     			secondaryNode.setAttribute("moveHere", !viewByPackage);
@@ -883,8 +906,8 @@ public class ServerLibraryManager implements EntryPoint {
     		
     		// Pipefile node
     		TreeNode pipeNode = new TreeNode(p.name);
+    		pipeNode.setAttribute("fileId", p.fileId);
     		pipeNode.setAttribute("key", secondaryKey + " > " + p.name);
-    		pipeNode.setAttribute("absolutePath", p.absolutePath);
     		pipeNode.setAttribute("viewable", true);
     		
     		fullTree.add(pipeNode, secondaryNode);
@@ -1103,7 +1126,7 @@ public class ServerLibraryManager implements EntryPoint {
 	private void viewFile(final Pipefile pipe){
 		clearWorkarea();
 		
-		lastPipefile = pipe.absolutePath;
+		lastPipefileId = pipe.fileId;
 		backToLastPipefile.hide();
 		
 		// File Operations
@@ -1268,10 +1291,13 @@ public class ServerLibraryManager implements EntryPoint {
 		Button update = new Button("Update");
 		update.addClickHandler( new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				String newPackageName = form.getValueAsString("package");
-				pipe.packageUpdated = pipe.packageName.equals(newPackageName) ? false : true;
+				String newName = form.getValueAsString("name");
+				pipe.nameUpdated = ( ! pipe.name.equals(newName) );
 				
-				pipe.name = form.getValueAsString("name");
+				String newPackageName = form.getValueAsString("package");
+				pipe.packageUpdated = ( ! pipe.packageName.equals(newPackageName));
+				
+				pipe.name = newName;
 				pipe.packageName = newPackageName;
 				pipe.type = form.getValueAsString("type");
 				pipe.description = form.getValueAsString("description");
@@ -1285,7 +1311,6 @@ public class ServerLibraryManager implements EntryPoint {
 					RegExp split = RegExp.compile("\n", "m");
 					SplitResult vals = split.split(form.getValueAsString("values"));
 					
-					// TODO, only add prefix for specific formatType
 					for (int j = 0; j<vals.length(); j++){
 						if(vals.get(j).length()==0)
 							continue;
@@ -1636,7 +1661,7 @@ public class ServerLibraryManager implements EntryPoint {
 		// Root Directory	
 		Hidden hRoot = new Hidden();
 		hRoot.setName("root");
-		hRoot.setValue(rootDirectory);
+		hRoot.setValue(rootDirectory.absolutePath);
 		
 		grid.setWidget(3, 1, hRoot);
         
@@ -1732,13 +1757,13 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Clears the workarea
 	 */
 	private void clearWorkarea(){
-		if (lastPipefile != null){
-			if (pipes.containsKey(lastPipefile)){
-				Pipefile pipe = pipes.get(lastPipefile);
+		if (lastPipefileId != -1){
+			if (pipes.containsKey(lastPipefileId)){
+				Pipefile pipe = pipes.get(lastPipefileId);
 				backToLastPipefile.setTitle("Back to " + pipe.name);
 				backToLastPipefile.show();
 			} else {
-				lastPipefile = null;
+				lastPipefileId = -1;
 			}
 		}
 		

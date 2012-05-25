@@ -24,10 +24,11 @@ public class Pipefile implements Serializable {
 	public String locationPrefix; 	// For Modules
 	public String uri;				// For Modules and Workflows
 	
-	public boolean packageUpdated; 	// Easy way to tell if the package changed
+	public boolean nameUpdated;  // Easy way to tall if the name changed, if true change filename
+	public boolean packageUpdated; 	// Easy way to tell if the package changed, if true move file
 	
 	public Pipefile(){
-		fileId = 0;
+		fileId = -1;
 		absolutePath = "";
 		
 		name = "";
@@ -44,6 +45,7 @@ public class Pipefile implements Serializable {
 		locationPrefix = "";
 		uri = "";
 		
+		nameUpdated = false;
 		packageUpdated = false;
 	}
 }

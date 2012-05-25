@@ -1,14 +1,13 @@
 package edu.ucla.loni.server;
 
+import edu.ucla.loni.shared.*;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-
-import edu.ucla.loni.shared.Group;
-import edu.ucla.loni.shared.Pipefile;
 
 public class Database {
 	////////////////////////////////////////////////////////////
@@ -243,7 +242,8 @@ public class Database {
 		PreparedStatement stmt = con.prepareStatement(
 			"UPDATE pipefiles " +
 		    "SET name = ?, type = ?, packageName = ?, description = ?, tags = ?, access = ?, " +
-		    "dataValues = ?, formatType = ?, location = ?, uri = ?, lastModified = ? " +
+		    "dataValues = ?, formatType = ?, location = ?, uri = ?, " +
+		    "absolutePath = ?, lastModified = ? " +
 			"WHERE fileId = ?"
 		);
 		
@@ -258,9 +258,11 @@ public class Database {
 		stmt.setString(8, pipe.formatType);
 		stmt.setString(9, pipe.location);
 		stmt.setString(10, pipe.uri);
-		stmt.setTimestamp(11, modified);
 		
-		stmt.setInt(12, pipe.fileId);
+		stmt.setString(11, pipe.absolutePath);
+		stmt.setTimestamp(12, modified);
+		
+		stmt.setInt(13, pipe.fileId);
 		
 		int updated = stmt.executeUpdate();
 		

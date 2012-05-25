@@ -1,10 +1,10 @@
 package edu.ucla.loni.server;
 
+import edu.ucla.loni.shared.*;
+
 import java.io.File;
 import java.io.InputStream;
 import java.util.List;
-
-import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
@@ -12,9 +12,9 @@ import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.jdom2.Document;
 
-import edu.ucla.loni.shared.*;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URL;
@@ -26,7 +26,7 @@ public class Upload extends HttpServlet {
 	/**
 	 *  Writes a file
 	 */
-	private void writeFile(String filename, InputStream in, String root, String packageName) throws Exception{
+	private void writeFile(Directory root, String packageName, InputStream in) throws Exception{
 		Document doc = ServerUtils.readXML(in);  
 		Pipefile pipe = ServerUtils.parse(doc);
 		
@@ -37,7 +37,7 @@ public class Upload extends HttpServlet {
 		}
 		
 		// Write the document
-		String destPath = ServerUtils.newAbsolutePath(root, pipe.packageName, pipe.type, filename);
+		String destPath = ServerUtils.newAbsolutePath(root.absolutePath, pipe.packageName, pipe.type, pipe.name);
 		File dest = new File(destPath);
 		
 		// Create parent folders if needed
@@ -49,18 +49,11 @@ public class Upload extends HttpServlet {
 			}
 		}
 		
-		// Create a new file
-		if (dest.createNewFile() == false){
-			// TODO rename file to something else
-			throw new Exception("File already exists");
-		}
-		
 		ServerUtils.writeXML(dest, doc);
 		pipe.absolutePath = destPath;
 		
-		Directory dir = Database.selectDirectory(root);
 		Timestamp fs_lastModified = new Timestamp(dest.lastModified());
-		Database.insertPipefile(dir.dirId, pipe, fs_lastModified);
+		Database.insertPipefile(root.dirId, pipe, fs_lastModified);
 	}
 	
 	public void doPost(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
@@ -75,23 +68,25 @@ public class Upload extends HttpServlet {
 				List<FileItem> items = upload.parseRequest( req );
 				
 				// Go through the items and get the root and package
-				String root = "";
+				String rootPath = "";
 				String packageName = "";
 				
 				for ( FileItem item : items ){
 					if ( item.isFormField() ){
 						if (item.getFieldName().equals("root")){
-							root = item.getString();
+							rootPath = item.getString();
 						} else if (item.getFieldName().equals("packageName")){
 							packageName = item.getString();
 						}
 					}
 				}
 				
-				if (root.equals("")){
+				if (rootPath.equals("")){
 					res.getWriter().println("error :: Root directory has not been found.");
 					return;
 				}
+				
+				Directory root = Database.selectDirectory(rootPath);
 				
 				// Go through items and process urls and files
 				for ( FileItem item : items ){
@@ -101,7 +96,7 @@ public class Upload extends HttpServlet {
 						try {
 							InputStream in = item.getInputStream();
 							
-							writeFile(filename, in, root, packageName);
+							writeFile(root, packageName, in);
 							
 							in.close();
 						} 
@@ -119,10 +114,9 @@ public class Upload extends HttpServlet {
 			                	URL url = new URL(urlStr);
 			                    URLConnection urlc = url.openConnection();
 			                    
-			                    String filename = ServerUtils.extractNameFromURL(urlStr);
 			                    InputStream in = urlc.getInputStream();
 			                    
-			                    writeFile(filename, in, root, packageName);
+			                    writeFile(root, packageName, in);
 			                    
 			                    in.close();
 			                }

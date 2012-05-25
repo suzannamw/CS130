@@ -1,8 +1,10 @@
-package edu.ucla.loni.server;
+package edu.ucla.loni.shared;
 
+import java.io.Serializable;
 import java.sql.Timestamp;
 
-public class Directory {
+@SuppressWarnings("serial")
+public class Directory implements Serializable {
 	public int dirId;
 	public String absolutePath;
 	public Timestamp monitorModified;

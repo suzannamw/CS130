@@ -1,5 +1,7 @@
 package edu.ucla.loni.server;
 
+import edu.ucla.loni.shared.*;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -10,8 +12,6 @@ import org.jdom2.Document;
 import org.jdom2.Element;
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.XMLOutputter;
-
-import edu.ucla.loni.shared.*;
 
 public class ServerUtils {
 	/**
@@ -66,13 +66,41 @@ public class ServerUtils {
 		return extractDirName(extractDirName(extractDirName(abspath)));
 	}
 	
-	public static String newAbsolutePath(String root, String packageName, String type, String filename){		
+	/**
+	 * Returns an unused absolute path for a file
+	 */
+	public static String newAbsolutePath(String root, String packageName, String type, String name){		
 		String newAbsolutePath = root +
 			File.separatorChar + packageName.replace(" " , "_") +
-			File.separatorChar + type +
-			File.separatorChar + filename;
+			File.separatorChar + type.replace(" " , "_") +
+			File.separatorChar + name.replace(" " , "_") + ".pipe";
 		
-		return newAbsolutePath;
+		File file = new File(newAbsolutePath);
+		
+		if (!file.exists()){
+			return newAbsolutePath;
+		}
+		else {
+			/*
+			 * The code above will try:
+			 * <root>/<pkg>/<mod>/my.pipe
+			 * <root>/<pkg>/<mod>/my_(2).pipe
+			 * <root>/<pkg>/<mod>/my_(3).pipe
+			 * ...
+			 */
+			
+			String testPathPart = newAbsolutePath.substring(0, newAbsolutePath.lastIndexOf(".pipe"));
+			String ext = ".pipe";
+			
+			for (int i = 2 ;; i++){
+				newAbsolutePath = testPathPart + "_(" + i + ")" + ext;
+				file = new File(newAbsolutePath);
+				
+				if (!file.exists()){
+					return newAbsolutePath;
+				}
+			}			
+		}
 	}
 	
 	/**
@@ -319,9 +347,8 @@ public class ServerUtils {
 	 * Writes the access file for the root directory
 	 * @throws Exception 
 	 */
-	public static void writeAccessFile(String rootDirectory) throws Exception{	
-		Directory dir = Database.selectDirectory(rootDirectory);
-		String accessFilePath = rootDirectory + "/.access.xml";
+	public static void writeAccessFile(Directory root) throws Exception{
+		String accessFilePath = root.absolutePath + "/.access.xml";
 		File f = new File(accessFilePath);
 		
 		// If the path doesn't exist return
@@ -336,15 +363,15 @@ public class ServerUtils {
 		Document doc = new Document();
 		
 		// Add root
-		Element root = new Element("access");
-		doc.addContent(root);
+		Element access = new Element("access");
+		doc.addContent(access);
 		
 		// Add files child to root
 		Element filesRoot = new Element("files");
-		root.addContent(filesRoot);
+		access.addContent(filesRoot);
 		
 		// For each pipe, add a file child to files
-		Pipefile[] pipes = Database.selectPipefiles(dir.dirId);
+		Pipefile[] pipes = Database.selectPipefiles(root.dirId);
 		
 		if (pipes != null){
 			for(Pipefile p : pipes) {
@@ -372,10 +399,10 @@ public class ServerUtils {
 		
 		// Add groups child to root
 		Element groupsRoot = new Element("groups");
-		root.addContent(groupsRoot);
+		access.addContent(groupsRoot);
 		
 		// For each group, add a group child to groups
-		Group[] groups = Database.selectGroups(dir.dirId);
+		Group[] groups = Database.selectGroups(root.dirId);
 		
 		if (groups != null){
 			for(Group g : groups) {
@@ -400,8 +427,8 @@ public class ServerUtils {
 		writeXML(f, doc);
 		
 		// Update when the access file was written
-		dir.accessModified = new Timestamp( f.lastModified() );
-		Database.updateDirectory(dir);
+		root.accessModified = new Timestamp( f.lastModified() );
+		Database.updateDirectory(root);
 	}
 	
 	/**
@@ -436,6 +463,9 @@ public class ServerUtils {
 		removeEmptyDirectoryRecursive(dir, 2);
 	}
 	
+	/**
+	 * Remove directory if it is empty, calls recursively on parent
+	 */
 	private static void removeEmptyDirectoryRecursive(File dir, int levels){
 		// Don't go any higher
 		if (levels == 0){
@@ -446,40 +476,6 @@ public class ServerUtils {
 		if(dir.listFiles().length == 0) {
 			dir.delete();
 			removeEmptyDirectoryRecursive(dir.getParentFile(), levels - 1);
-		}
-	}
-	
-	/**
-	 * @return abspath for newFile, 
-	 * null if it fails, and the new file should not be added to the system
-	 */
-	
-	public static String newFilename(String absolutePath){
-		File readyFile = new File(absolutePath);
-		
-		if (!readyFile.exists()){
-			return absolutePath;
-		}
-		else {
-			/*
-			 * The code above will try:
-			 * <root>/<pkg>/<mod>/my.pipe
-			 * <root>/<pkg>/<mod>/my_(2).pipe
-			 * <root>/<pkg>/<mod>/my_(3).pipe
-			 * ...
-			 */
-			
-			String testPathPart = absolutePath.substring(0, absolutePath.lastIndexOf(".pipe"));
-			String ext = ".pipe";
-			
-			for (int i = 2 ;; i++){
-				String newAbsolutePath = testPathPart + "_(" + i + ")" + ext;
-				readyFile = new File(newAbsolutePath);
-				
-				if (!readyFile.exists()){
-					return newAbsolutePath;
-				}
-			}			
 		}
 	}
 }
