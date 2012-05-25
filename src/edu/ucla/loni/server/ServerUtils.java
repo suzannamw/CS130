@@ -14,60 +14,17 @@ import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.XMLOutputter;
 
 public class ServerUtils {
-	/**
-	* essentially a duplicate of function below (i.e. extractFileName) with exception that 
-	* this function extracts name from string that could have window's or unix separators.
-	* It became esuful for getting name of urls
-	*/
-	public static String extractNameFromURL(String s){
-		String res = "";
-		for( int i = s.length() - 1; i >= 0; i-- ){
-			if( (s.charAt(i) == File.separatorChar) || (s.charAt(i) == '/') ) {
-				res = s.substring(i + 1, s.length());
-				break;
-			}
-		}
-		return res;
-	}
-	
-	/**  
-	 * given an absolute path string, this function attempts to isolate actual name of file
-	 * @param s - absolute path of file
-	 */
-	public static String extractFileName(String s){
-		String res = "";
-		for( int i = s.length() - 1; i >= 0; i-- ){
-			if( s.charAt(i) == File.separatorChar ) {
-				res = s.substring(i + 1, s.length());
-				break;
-			}
-		}
-		return res;
-	}
+	//************************************************************
+	// File Operations
+	//************************************************************
 	
 	/**
-	 *  given an absolute path string, this function isolates the directory absolute address where
-	 *  current file is placed
-	 *  @param s - absolute path of file
-	 */
-	public static String extractDirName(String s){
-		String res = "";
-		for( int i = s.length() - 1; i >= 0; i-- ){
-			if( s.charAt(i) == File.separatorChar ) {
-				res = s.substring(0, i);
-				break;
-			}
-		}
-		return res;
-	}
-	
-	public static String extractRootDir(String abspath) {
-		// Absolute Path = root / package / type / filename
-		return extractDirName(extractDirName(extractDirName(abspath)));
-	}
-	
-	/**
-	 * Returns an unused absolute path for a file
+	 * Returns an unused absolute path built by combining the parameters and checking for conflicts
+	 * <p> Possible return values:
+	 * <br> root/packageName/type/name.pipe
+	 * <br> root/packageName/type/name_(2).pipe 
+	 * <br> root/packageName/type/name_(3).pipe
+	 * <br> etc
 	 */
 	public static String newAbsolutePath(String root, String packageName, String type, String name){		
 		String newAbsolutePath = root +
@@ -80,15 +37,7 @@ public class ServerUtils {
 		if (!file.exists()){
 			return newAbsolutePath;
 		}
-		else {
-			/*
-			 * The code above will try:
-			 * <root>/<pkg>/<mod>/my.pipe
-			 * <root>/<pkg>/<mod>/my_(2).pipe
-			 * <root>/<pkg>/<mod>/my_(3).pipe
-			 * ...
-			 */
-			
+		else {			
 			String testPathPart = newAbsolutePath.substring(0, newAbsolutePath.lastIndexOf(".pipe"));
 			String ext = ".pipe";
 			
@@ -102,6 +51,29 @@ public class ServerUtils {
 			}			
 		}
 	}
+	
+	/**
+	 * Removes directory if it empty and its parent folder if that becomes empty
+	 * @param dir a file that is a directory
+	 */
+	public static void removeEmptyDirectory(File dir){
+		if(dir.listFiles().length == 0) {
+			dir.delete();
+			
+			File parent = dir.getParentFile();
+			if (parent.listFiles().length == 0){
+				parent.delete();
+			}
+		}
+	}
+	
+	//************************************************************
+	// XML
+	//************************************************************
+	
+	//------------------------------------------------------------
+	// Read
+	//------------------------------------------------------------
 	
 	/**
 	 * Parse an XML file into a Document
@@ -123,6 +95,10 @@ public class ServerUtils {
 		return doc;
 	}
 	
+	//------------------------------------------------------------
+	// Write
+	//------------------------------------------------------------
+	
 	/**
 	 * Write a document (XML file) to a particular absolute path
 	 * @throws Exception 
@@ -136,6 +112,10 @@ public class ServerUtils {
 		fileOut.flush();
 		fileOut.close();
 	}
+	
+	//------------------------------------------------------------
+	// Parse (getChildrenText and getMainElement are helpers)
+	//------------------------------------------------------------
 	
 	/** 
 	 * Get the text value of children joined by separator
@@ -190,7 +170,7 @@ public class ServerUtils {
 	/**
 	 * Parses a .pipe into a Pipefile
 	 */
-	public static Pipefile parse(Document doc){
+	public static Pipefile parseXML(Document doc){
 		try {
 			Pipefile pipe = new Pipefile();
 			Element main = getMainElement(doc);
@@ -237,30 +217,37 @@ public class ServerUtils {
 			}
 			
 			return pipe;
-		} catch (Exception e){
+		} 
+		catch (Exception e){
 			return null;
 		}
 	}
 	
-	public static Pipefile parse(File file){
+	public static Pipefile parseXML(File file){
 		try {
 			Document doc = readXML(file);
-			Pipefile pipe = parse(doc);
+			Pipefile pipe = parseXML(doc);
 			
 			if (pipe != null){
 				pipe.absolutePath = file.getAbsolutePath();
 			}
+			
 			return pipe;
-		} catch (Exception e){
+		} 
+		catch (Exception e){
 			return null;
 		}
 	}
+	
+	//------------------------------------------------------------
+	// Update 
+	//------------------------------------------------------------
 	
 	/**
 	 * Updates a Document (XML file) with all the attributes from a Pipefile
 	 * @throws Exception 
 	 */
-	public static Document update(Document doc, Pipefile pipe, boolean packageOnly) throws Exception{
+	public static Document updateXML(Document doc, Pipefile pipe, boolean packageOnly) throws Exception{
 		Element main = getMainElement(doc);
 		
 		main.setAttribute("package", pipe.packageName);
@@ -341,6 +328,39 @@ public class ServerUtils {
 		}
 		
 		return doc;
+	}
+	
+	//************************************************************
+	// Access File
+	//************************************************************
+	
+	//------------------------------------------------------------
+	// Read 
+	//------------------------------------------------------------
+	
+	// TODO
+	
+	//------------------------------------------------------------
+	// Write (agentElement is a helper)
+	//------------------------------------------------------------
+	
+	/**
+	 *  Creates an agent Element
+	 */
+	public static Element agentElement(String agent){
+		agent = agent.trim();
+		
+		String value, group;
+		
+		if (GroupSyntax.isGroup(agent)){
+			value = GroupSyntax.agentToGroup(agent);
+			group = "true";
+		} else {
+			value = agent;
+			group = "false";
+		}
+		
+		return new Element("agent").addContent(value).setAttribute("group", group);
 	}
 	
 	/**
@@ -429,53 +449,5 @@ public class ServerUtils {
 		// Update when the access file was written
 		root.accessModified = new Timestamp( f.lastModified() );
 		Database.updateDirectory(root);
-	}
-	
-	/**
-	 *  Creates an agent Element
-	 */
-	public static Element agentElement(String agent){
-		agent = agent.trim();
-		
-		String value, group;
-		
-		if (GroupSyntax.isGroup(agent)){
-			value = GroupSyntax.agentToGroup(agent);
-			group = "true";
-		} else {
-			value = agent;
-			group = "false";
-		}
-		
-		return new Element("agent").addContent(value).setAttribute("group", group);
-	}
-	
-	/**
-	 * Remove empty directory
-	 * @param dir, parent folder that held the pipefile that was removed / moved
-	 */
-	public static void removeEmptyDirectory(File dir){
-		// Only try two levels
-		// Level == 2, dir == type
-		// Level == 1, dir == package
-		// Level == 0, dir == root (stop here)
-		
-		removeEmptyDirectoryRecursive(dir, 2);
-	}
-	
-	/**
-	 * Remove directory if it is empty, calls recursively on parent
-	 */
-	private static void removeEmptyDirectoryRecursive(File dir, int levels){
-		// Don't go any higher
-		if (levels == 0){
-			return;
-		} 
-		
-		// If empty, delete, call on parent
-		if(dir.listFiles().length == 0) {
-			dir.delete();
-			removeEmptyDirectoryRecursive(dir.getParentFile(), levels - 1);
-		}
 	}
 }

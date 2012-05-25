@@ -62,7 +62,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		if (pipes != null){
 			for(Pipefile pipe : pipes){
 				File file = new File(pipe.absolutePath);
-				if (file.exists() == false){
+				if (!file.exists()){
 					Database.deletePipefile(pipe);
 				}
 			}
@@ -87,7 +87,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			accessModified = new Timestamp(access.lastModified());
 		}
 		
-		// If use monitor file and it has not changed
+		// If use monitor file has not changed
 		if (monitorModified != null){
 			if (monitorModified.equals(root.monitorModified)){
 				return;
@@ -100,7 +100,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		// Clean the database
 		cleanDatabase(root);
 		
-		// Update all files
+		// Get all the files
 		File rootDir = new File(root.absolutePath);
 		ArrayList<File> files = getAllPipefiles(rootDir);
 				
@@ -116,7 +116,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 		    if (db_lastModified != null){				
 				// If file has been modified
-				if (db_lastModified.equals(fs_lastModified) == false){
+				if ( !db_lastModified.equals(fs_lastModified) ){
 					update = true;
 				}
 			} 
@@ -126,7 +126,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// If we need to update or insert a row
 		    if (update || insert){			    	
-		    	Pipefile pipe = ServerUtils.parse(file);
+		    	Pipefile pipe = ServerUtils.parseXML(file);
 				
 				if (insert){
 					Database.insertPipefile(root.dirId, pipe, fs_lastModified);
@@ -157,7 +157,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		if (f.exists()){
 			// Delete file on file-system
 			boolean success = f.delete();
-			if (success == false){
+			if (!success){
 				throw new Exception("Failed to remove file " + pipe.absolutePath);
 			}
 			
@@ -198,7 +198,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
-	 *  Move a file from the server to the proper package
+	 *  Move a file to another package
 	 *  @param filename absolute path of the file = source path of file
 	 *  @param packageName is the name of the package as it appears in the Database in column PACKAGENAME
 	 *  @throws Exception 
@@ -223,7 +223,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		
 		// If the destination directory does not exist, create it and necessary parent directories
 		File destDir = dest.getParentFile();
-		if (destDir.exists() == false){
+		if (!destDir.exists()){
 			boolean success = destDir.mkdirs();
 			if (!success){
 				throw new Exception("Destination folders could not be created");
@@ -261,7 +261,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				
 		// Update XML
 		Document doc = ServerUtils.readXML(dest);
-		doc = ServerUtils.update(doc, pipe, true);
+		doc = ServerUtils.updateXML(doc, pipe, true);
 		ServerUtils.writeXML(dest, doc);
 			
 		// Update Database
@@ -364,19 +364,33 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// Update the XML
 			Document doc = ServerUtils.readXML(file);
-			doc = ServerUtils.update(doc, pipe, false);
+			doc = ServerUtils.updateXML(doc, pipe, false);
 			ServerUtils.writeXML(file, doc);
 			
 			// Update the filename if the name changed
-			if (pipe.nameUpdated){
+			if (pipe.nameUpdated || pipe.packageUpdated){
 				String destPath = ServerUtils.newAbsolutePath(root.absolutePath, pipe.packageName, pipe.type, pipe.name);
 				File dest = new File(destPath);
 				
+				// Create parent folders if needed
+				File destDir = dest.getParentFile();
+				if (!destDir.exists()){
+					boolean success = destDir.mkdirs();
+					if (!success){
+						throw new Exception("Destination folders could not be created");
+					}
+				}
+				
+				// Move the file
 				boolean success = file.renameTo(dest);
 				if(!success) {
 					throw new Exception("Failed to rename file");
 				}
 				
+				// Remove parent directory if it is empty
+				ServerUtils.removeEmptyDirectory(file.getParentFile());
+				
+				// Update file and absolutePath
 				file = dest;
 				pipe.absolutePath = destPath;
 			}
@@ -390,11 +404,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// Write the access file
 			ServerUtils.writeAccessFile(root);
-			
-			// If package updated, move the file
-			if (pipe.packageUpdated){
-				moveFile(root, pipe, pipe.packageName);
-			} 
 		} 
 		catch (Exception e) {
 			e.printStackTrace();

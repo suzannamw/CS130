@@ -1,5 +1,6 @@
 package edu.ucla.loni.server;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -22,15 +23,17 @@ public class Download extends HttpServlet{
 		// If one file
 		if (n == 1){
 			String filename = request.getParameter("filename_0");
-			String fShortName = ServerUtils.extractFileName(filename);
+			File file = new File(filename);
 			
 			// Set the Content Type to XML and the name of the file
+			String fShortName = file.getName();
+			
 			response.setContentType("text/xml"); 
 			response.setHeader("Content-Disposition", "attachment; filename=" + fShortName); 			
         
 			// Get the input and output streams
             OutputStream out = response.getOutputStream();
-            FileInputStream in = new FileInputStream(filename);
+            FileInputStream in = new FileInputStream(file);
             
             // Read from input, write to output
             int length = 0;
@@ -62,13 +65,15 @@ public class Download extends HttpServlet{
 			for (int i = 0; i < n; i++){
 				// Get the filename, get the input stream
 				String filename = request.getParameter("filename_" + i);
-				FileInputStream in = new FileInputStream(filename);
+				File file = new File(filename);
 				
 				// Add an entry to the zip 
-				String fShortName = ServerUtils.extractFileName(filename);				
+				String fShortName = file.getName();				
 				zip.putNextEntry(new ZipEntry(fShortName));
 				
 				// Write the data to the zip
+				FileInputStream in = new FileInputStream(file);
+				
 	            int length = 0;
 	            byte[] buffer = new byte[8192];
 	            

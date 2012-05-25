@@ -28,12 +28,12 @@ public class Upload extends HttpServlet {
 	 */
 	private void writeFile(Directory root, String packageName, InputStream in) throws Exception{
 		Document doc = ServerUtils.readXML(in);  
-		Pipefile pipe = ServerUtils.parse(doc);
+		Pipefile pipe = ServerUtils.parseXML(doc);
 		
 		// Update the packageName
 		if (packageName != null && packageName.length() > 0){
 			pipe.packageName = packageName;
-			doc = ServerUtils.update(doc, pipe, true);
+			doc = ServerUtils.updateXML(doc, pipe, true);
 		}
 		
 		// Write the document
