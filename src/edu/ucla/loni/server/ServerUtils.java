@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.jdom2.Document;
@@ -449,5 +450,75 @@ public class ServerUtils {
 		// Update when the access file was written
 		root.accessModified = new Timestamp( f.lastModified() );
 		Database.updateDirectory(root);
+	}
+	
+	/**
+	 * Reads the access file for the root directory
+	 * @throws Exception 
+	 */
+	public static void readAccessFile(Directory root) throws Exception{
+		
+		//TODO
+		//finish the comments
+		
+		String accessFilePath = root.absolutePath + "/.access.xml";
+		File f = new File(accessFilePath);
+		if (!f.exists())
+			return;
+		Document doc = readXML(f);
+		Element access = getMainElement(doc);
+		Element filesRoot = access.getChild("files");
+		Element groupsRoot = access.getChild("groups");
+		for (Element pipe: filesRoot.getChildren())
+		{
+			ArrayList<String> groupList = new ArrayList<String> () ;
+			String type = pipe.getAttributeValue("type");
+			String name = pipe.getAttributeValue("name");
+			String packageName = pipe.getAttributeValue("package");
+			String path = newAbsolutePath(root.absolutePath, packageName, type, name);
+			int pid = Database.selectPipefileId(path);
+			//get pipefile by path
+			
+			// build access string
+			for (Element agent: pipe.getChildren())
+			{
+				boolean isGroup = agent.getAttributeValue("group") == "true";
+				String groupName = agent.getValue();
+				if (isGroup)
+					groupName = "[" + groupName + "]";
+				groupList.add(groupName);
+			
+			}
+			//might be wrong
+			String groupString = groupList.toArray().toString();
+			//change access of pipfile
+			
+			//save changes to database
+			
+		}
+		
+		for (Element group: groupsRoot.getChildren())
+		{
+			String name = group.getAttributeValue("name");
+			
+			//get Group by name from db
+			
+			ArrayList<String> groupList = new ArrayList<String> () ;
+			for (Element agent: group.getChildren()) {
+			//get individ. group
+				boolean isGroup = agent.getAttributeValue("group") == "true";
+				String groupName = agent.getValue();
+				if (isGroup)
+					groupName = "[" + groupName + "]";
+				groupList.add(groupName);
+			}
+			// group
+			String groupString = groupList.toArray().toString();
+			
+			//update group member var
+			
+			//update this to db
+		}
+		
 	}
 }
