@@ -171,6 +171,30 @@ public class Database {
 		return resultSetToPipefileArray(rs);
 	}
 	
+	public static Pipefile selectPipefileByHierarchy(int dirId, String packageName, String type, String name) throws Exception {
+		
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"SELECT * " +
+			"FROM pipefiles " +
+			"WHERE directoryID = ? " +
+				"AND packageName =  ? " +
+				"AND type = ? " +
+				"AND name = ? " 
+		);
+		stmt.setInt(1, dirId);
+		stmt.setString(2, packageName);
+		stmt.setString(3, type);
+		stmt.setString(4, name);
+		ResultSet rs = stmt.executeQuery();
+		
+		Pipefile [] rsPipes = resultSetToPipefileArray(rs);
+		if (rsPipes.length == 1) //should always be 1
+			return rsPipes[0];
+		else
+			return null;
+	}
+	
 	public static int selectPipefileId(String absolutePath) throws Exception {
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
@@ -354,6 +378,23 @@ public class Database {
 		} else {
 			return -1;
 		}
+	}
+	
+	public static Group selectGroupByName(String name) throws Exception {
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"SELECT * " +
+			"FROM groups " +
+			"WHERE name = ?"
+		);
+		stmt.setString(1, name);
+		ResultSet rs = stmt.executeQuery();
+		Group[] groups = resultSetToGroupArray(rs);
+		
+		if (groups.length == 1) //should only be 1 if group name is unique
+			return groups[0];
+		else
+			return null;
 	}
 	
 	/**
