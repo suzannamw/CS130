@@ -383,9 +383,10 @@ public class Database {
 	public static Group selectGroupByName(String name) throws Exception {
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"SELECT * " +
-			"FROM groups " +
-			"WHERE name = ?"
+			"SELECT groupId, name, users, COUNT(depId) " +
+			"FROM groups AS g LEFT JOIN groupDependencies AS gd ON g.groupId = gd.groupId " +
+			"WHERE name = ? " + 
+			"GROUP BY groupId"
 		);
 		stmt.setString(1, name);
 		ResultSet rs = stmt.executeQuery();
