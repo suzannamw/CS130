@@ -142,7 +142,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		
 		// If access exists and has been changed
 		if (accessModified != null && (accessModified.before(root.accessModified) || accessModified.equals(root.accessModified))){
-			return ServerUtils.readAccessFile(root);
+			ServerUtils.readAccessFile(root);
 		} else {
 			ServerUtils.writeAccessFile(root);
 		}
