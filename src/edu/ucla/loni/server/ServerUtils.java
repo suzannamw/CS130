@@ -527,12 +527,12 @@ public class ServerUtils {
 		if (filesRoot.getChildren() != null) {
 			for (Element pipe: filesRoot.getChildren())
 			{
-				//String type = pipe.getAttributeValue("type"); //THERE IS NO parameter named 'type' inside any tags in .access file???
-				String name = pipe.getAttributeValue("name");
+				String type = pipe.getAttributeValue("type");
+                                    String name = pipe.getAttributeValue("name");
 				String packageName = pipe.getAttributeValue("package");
 				
 				//get pipefile by path
-				Pipefile thisPipe = Database.selectPipefileByHierarchy(dirId, packageName, /*type,*/ name);
+				Pipefile thisPipe = Database.selectPipefileByHierarchy(dirId, packageName, type, name);
 				
 				// build access string
 				String accessString = readAccessFileGroup(pipe);
