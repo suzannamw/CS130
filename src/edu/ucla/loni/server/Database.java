@@ -171,7 +171,7 @@ public class Database {
 		return resultSetToPipefileArray(rs);
 	}
 	
-	public static Pipefile selectPipefileByHierarchy(int dirId, String packageName, String type, String name) throws Exception {
+	public static Pipefile selectPipefileByHierarchy(int dirId, String packageName, /*String type,*/ String name) throws Exception {
 		
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
@@ -179,13 +179,13 @@ public class Database {
 			"FROM pipefiles " +
 			"WHERE directoryID = ? " +
 				"AND packageName =  ? " +
-				"AND type = ? " +
+				/*"AND type = ? " +*/
 				"AND name = ? " 
 		);
 		stmt.setInt(1, dirId);
 		stmt.setString(2, packageName);
-		stmt.setString(3, type);
-		stmt.setString(4, name);
+		/*stmt.setString(3, type);*/
+		stmt.setString(3, name);
 		ResultSet rs = stmt.executeQuery();
 		
 		Pipefile [] rsPipes = resultSetToPipefileArray(rs);
