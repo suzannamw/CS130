@@ -1,19 +1,19 @@
 <access>
   <files>
-  	<dataModule name="AAL Atlas ROIs" package="AAL">
+  	<file type="Data" name="AAL Atlas ROIs" package="AAL">
       <agent group="false">user1</agent>
       <agent group="true">group2</agent>
-    </dataModule>
+    </file>
   
-    <module name="Chaos" package="EMBOSS">
+    <file type="Module" name="Chaos" package="EMBOSS">
       <agent group="false">user1</agent>
-    </module>
+    </file>
     
-    <moduleGroup name="BATWING" package="Bioinformatics">
+    <file type="Group" name="BATWING" package="Bioinformatics">
       <agent group="true">group1</agent>
       <agent group="true">group2</agent>
       <agent group="false">user2</agent>
-    </moduleGroup>
+    </file>
   </files>
   
   <groups>
