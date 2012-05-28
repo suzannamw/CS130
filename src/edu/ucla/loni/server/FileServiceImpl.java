@@ -127,21 +127,19 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			// If we need to update or insert a row
 		    if (update || insert){			    	
 		    	Pipefile pipe = ServerUtils.parseXML(file);
+		    	pipe.lastModified = fs_lastModified;
 				
 				if (insert){
-					Database.insertPipefile(root.dirId, pipe, fs_lastModified);
-					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
+					Database.insertPipefile(root.dirId, pipe);
 				} else {
 					pipe.fileId = Database.selectPipefileId(file.getAbsolutePath());
-					Database.updatePipefile(pipe, fs_lastModified);
+					Database.updatePipefile(pipe);
 				}
-				
-				updateGroupDependencies(1, pipe.fileId, pipe.access);
  		    }
 		}
 		
 		// If access exists and has been changed
-		if (accessModified != null && (accessModified.before(root.accessModified) || accessModified.equals(root.accessModified))){
+		if (accessModified != null && !accessModified.equals(root.accessModified)){
 			ServerUtils.readAccessFile(root);
 		} else {
 			ServerUtils.writeAccessFile(root);
@@ -171,25 +169,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// Delete file from database
 			Database.deletePipefile(pipe);
-		}
-	}
-	
-	private void updateGroupDependencies(int depType, int depId, String agentsStr) throws Exception{
-		Database.deleteGroupDependency(depType, depId);
-		
-		String[] agents = agentsStr.split(",");
-		for(String agent : agents){
-			// Trim whitespace
-			agent = agent.trim();
-			
-			if (GroupSyntax.isGroup(agent)){
-				String group = GroupSyntax.agentToGroup(agent);
-				int groupId = Database.selectGroupId(group);
-				
-				if (groupId != -1){
-					Database.insertGroupDependency(groupId, depType, depId);	
-				}
-			}
 		}
 	}
 	
@@ -270,12 +249,13 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		ServerUtils.writeXML(dest, doc);
 			
 		// Update Database
-		Timestamp modified = new Timestamp(dest.lastModified());
+		pipe.lastModified = new Timestamp(dest.lastModified());
+		
 		if (copy) {
-			Database.insertPipefile(root.dirId, pipe, modified);
+			Database.insertPipefile(root.dirId, pipe);
 		} 
 		else {
-			Database.updatePipefile(pipe, modified);
+			Database.updatePipefile(pipe);
 		}
 	}
 	
@@ -401,11 +381,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			}
 			
 			// Update the database
-			Timestamp modified = new Timestamp(file.lastModified());
-			Database.updatePipefile(pipe, modified);
-			
-			// Update Group Dependencies
-			updateGroupDependencies(1, pipe.fileId, pipe.access);
+			pipe.lastModified = new Timestamp(file.lastModified());
+			Database.updatePipefile(pipe);
 			
 			// Update monitor and access files
 			updateMonitorAndAccessFile(root);
@@ -503,15 +480,9 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			// Insert or update the group
 			if (group.groupId == -1){
 				Database.insertGroup(root.dirId, group);
-				group.groupId = Database.selectGroupId(group.name);
 			} else {
 				Database.updateGroup(group);
 			}
-			
-			// Update Group Dependences
-			updateGroupDependencies(0, group.groupId, group.users);
-			
-			// TODO update files and groups that reference this group
 			
 			// Write the access file
 			ServerUtils.writeAccessFile(root);
@@ -526,13 +497,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Deletes groups on the server (also used for creating groups)
 	 *  @param group group to be updated
 	 */
-	public void	removeGroups(Directory root, Group[] groups, boolean deleteReferences) throws Exception{
+	public void	removeGroups(Directory root, Group[] groups) throws Exception{
 		try {			
 			// Delete each group
 			for (Group group: groups){
 				Database.deleteGroup(group);
-				
-				// TODO update files and groups that reference this group
 			}
 			
 			// Write the access file

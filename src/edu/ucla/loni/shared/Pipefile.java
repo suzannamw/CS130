@@ -1,12 +1,15 @@
 package edu.ucla.loni.shared;
 
 import java.io.Serializable;
+import java.sql.Timestamp;
 
 @SuppressWarnings("serial")
 public class Pipefile implements Serializable {
 	// Identifiers
 	public int fileId;
+	public int directoryId;
 	public String absolutePath;
+	public Timestamp lastModified;
 	
 	// General Properties
 	public String name;
@@ -29,6 +32,7 @@ public class Pipefile implements Serializable {
 	
 	public Pipefile(){
 		fileId = -1;
+		directoryId = -1;
 		absolutePath = "";
 		
 		name = "";

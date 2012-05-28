@@ -18,6 +18,7 @@ import com.google.gwt.regexp.shared.SplitResult;
 
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Timer;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.google.gwt.user.client.ui.FileUpload;
 import com.google.gwt.user.client.ui.FormPanel;
@@ -45,7 +46,6 @@ import com.smartgwt.client.widgets.events.ResizedHandler;
 import com.smartgwt.client.widgets.Button;
 import com.smartgwt.client.widgets.Dialog;
 import com.smartgwt.client.widgets.Label;
-import com.smartgwt.client.widgets.Window;
 import com.smartgwt.client.widgets.form.DynamicForm;
 import com.smartgwt.client.widgets.form.fields.ComboBoxItem;
 import com.smartgwt.client.widgets.form.fields.FormItem;
@@ -739,6 +739,9 @@ public class ServerLibraryManager implements EntryPoint {
 		    		updateFullTree();
 		    		basicInstructions();
 		    	}
+		    	
+		    	// Get the groups as the user may have created an undefined group
+		    	getGroups(false);
 		    }
 		});
 	}
@@ -860,17 +863,29 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 * Makes the RPC to getGroups
 	 */
-	private void removeGroups(final Group[] groups, boolean deleteReferences){
-		fileServer.removeGroups(rootDirectory, groups, deleteReferences, new AsyncCallback<Void>(){
-			public void onFailure(Throwable caught) {
-	        	error("Failed to remove groups: "+ caught.getMessage());
-	        }
-
-	        public void onSuccess(Void result) {
-	        	getGroups(true);
-	        	success("Successfully removed " + groups.length + " file(s).");
-	        }
-		});
+	private void removeGroups(final Group[] groups){
+		SC.confirm(
+			"Confirm Remove", 
+			"Please confirm that you want to remove the " + 
+				groups.length + " selected groups(s). <br/>" + 
+				"All references to this group will be removed",
+			new BooleanCallback(){
+				public void execute(Boolean value) {
+					if (value){
+						fileServer.removeGroups(rootDirectory, groups, new AsyncCallback<Void>(){
+							public void onFailure(Throwable caught) {
+					        	error("Failed to remove groups: "+ caught.getMessage());
+					        }
+				
+					        public void onSuccess(Void result) {
+					        	getGroups(true);
+					        	success("Successfully removed " + groups.length + " file(s).");
+					        }
+						});
+					}
+				}
+			}
+		);
 	}
 	
 	/**
@@ -885,7 +900,7 @@ public class ServerLibraryManager implements EntryPoint {
 			url += "&filename_" + i + "=" + URL.encode(filename);
 		}
 		
-		com.google.gwt.user.client.Window.open(url, "downloadWindow", "");
+		Window.open(url, "downloadWindow", "");
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -1148,7 +1163,7 @@ public class ServerLibraryManager implements EntryPoint {
 			agent = agent.trim();
 			
 			if (GroupSyntax.isGroup(agent)){
-				String group = GroupSyntax.agentToGroup(agent);
+				String group = GroupSyntax.agentToGroupname(agent);
 				
 				if (group.equals(originalGroup)){
 					ret += base + loopFound + "<br/>";
@@ -1453,7 +1468,6 @@ public class ServerLibraryManager implements EntryPoint {
 			ListGridRecord record = new ListGridRecord();
 			record.setAttribute("name", group.name);
 			record.setAttribute("users", group.users);
-			record.setAttribute("dependencies", group.dependencies);
 			
 			records[i++] = record;
 		}
@@ -1495,74 +1509,13 @@ public class ServerLibraryManager implements EntryPoint {
 				if (selected != null && selected.length > 0){
 					final Group[] toRemove = new Group[selected.length];
 					
-					boolean extraCheck = false;
-					
 					int i = 0;
 					for(ListGridRecord r : selected){
-						String name = r.getAttribute("name");
-						
-						Group g = groups.get(name);
-						if (g.dependencies){
-							extraCheck = true;
-						}
-						
+						String name = r.getAttribute("name");				
 						toRemove[i++] = groups.get(name);
 					}
 					
-					// Check how to resolve dependencies
-					if (extraCheck){
-						final Window w = new Window();
-						w.setWidth(600);
-						w.setHeight(200);
-						w.setTitle("Resolve Group Dependencies");
-						w.setIsModal(true);
-						w.setShowModalMask(true);
-						w.setShowCloseButton(false);
-						w.centerInPage();
-						
-						HLayout buttonRow = new HLayout(10);
-						buttonRow.setAlign(Alignment.CENTER);
-						
-						Button deleteAllReferences = new Button("Delete all references");
-						deleteAllReferences.setWidth(125);
-						deleteAllReferences.addClickHandler(new ClickHandler(){
-							public void onClick(ClickEvent event) {
-								removeGroups(toRemove, true);
-							}
-						});
-						buttonRow.addMember(deleteAllReferences);
-						
-						Button deleteGroupOnly = new Button("Delete group only");
-						deleteGroupOnly.addClickHandler(new ClickHandler(){
-							public void onClick(ClickEvent event) {
-								removeGroups(toRemove, false);
-							}
-						});
-						buttonRow.addMember(deleteGroupOnly);
-						
-						Button cancel = new Button("Cancel");
-						cancel.addClickHandler(new ClickHandler(){
-							public void onClick(ClickEvent event) {
-								w.clear();
-							}
-						});
-						buttonRow.addMember(cancel);
-						
-						Label title = new Label(
-							"One or more of the selected groups is referenced in " +
-							"file access restrictions or the definition of another group.<br/>" +
-							"How would you like to proceed?"
-						);
-						title.setAlign(Alignment.CENTER);
-						
-						VLayout layout = new VLayout();
-						layout.setMargin(10);
-						layout.addMember(title);
-						layout.addMember(buttonRow);
-						
-						w.addItem(layout);
-						w.show();
-					}
+					removeGroups(toRemove);
 				}
 			}
 		});

@@ -14,7 +14,14 @@ public class GroupSyntax {
 	/**
 	 *  Trims off the group syntax to give you just the group name
 	 */
-	public static String agentToGroup(String agent){
+	public static String agentToGroupname(String agent){
 		return agent.substring(start.length(), agent.length() - end.length());
+	}
+	
+	/**
+	 *  Adds the groupSyntax to the name of a group
+	 */
+	public static String groupnameToAgent(String groupName){
+		return start + groupName + end;
 	}
 }

@@ -98,7 +98,8 @@ public class Database {
 	
 	/**
 	 * ResultSet is from a query with the following form 
-	 *   SELECT * FROM pipefile WHERE ...
+	 *   SELECT * 
+	 *   FROM pipefile ...
 	 */
 	private static Pipefile[] resultSetToPipefileArray(ResultSet rs) throws Exception{
 		ArrayList<Pipefile> list = new ArrayList<Pipefile>();
@@ -107,21 +108,21 @@ public class Database {
 			Pipefile p = new Pipefile();
 			
 			p.fileId = rs.getInt(1);
-			// directoryId at index 2
+			p.directoryId = rs.getInt(2);
 			p.absolutePath = rs.getString(3);
-			// lastModified at index 4
+			p.lastModified = rs.getTimestamp(4);
 			
 			p.name = rs.getString(5);
 			p.type = rs.getString(6);
 			p.packageName = rs.getString(7);
 			p.description = rs.getString(8);
 			p.tags = rs.getString(9);
-			p.access = rs.getString(10);
+			p.access = Database.selectAgents(true,  p.fileId);
 			
-			p.values = rs.getString(11);
-			p.formatType = rs.getString(12);
-			p.location = rs.getString(13);
-			p.uri = rs.getString(14);
+			p.values = rs.getString(10);
+			p.formatType = rs.getString(11);
+			p.location = rs.getString(12);
+			p.uri = rs.getString(13);
 			
 			list.add(p);
 		}
@@ -229,30 +230,29 @@ public class Database {
 		}
 	}
 	
-	public static void insertPipefile(int dirId, Pipefile pipe, Timestamp modified) throws Exception{
+	public static void insertPipefile(int dirId, Pipefile pipe) throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
 			"INSERT INTO pipefiles (" +
 				"directoryID, absolutePath, lastModified, " +
-				"name, type, packageName, description, tags, access, " +
+				"name, type, packageName, description, tags, " +
 				"dataValues, formatType, location, uri) " +
-			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 		);
 		stmt.setInt(1, dirId);
 		stmt.setString(2, pipe.absolutePath);
-		stmt.setTimestamp(3, modified);
+		stmt.setTimestamp(3, pipe.lastModified);
 		
 		stmt.setString(4, pipe.name);
 		stmt.setString(5, pipe.type);
 		stmt.setString(6, pipe.packageName);
 		stmt.setString(7, pipe.description);
 		stmt.setString(8, pipe.tags);
-		stmt.setString(9, pipe.access);
 		
-		stmt.setString(10, pipe.values);
-		stmt.setString(11, pipe.formatType);
-		stmt.setString(12, pipe.location);
-		stmt.setString(13, pipe.uri);
+		stmt.setString(9, pipe.values);
+		stmt.setString(10, pipe.formatType);
+		stmt.setString(11, pipe.location);
+		stmt.setString(12, pipe.uri);
 		
 		int inserted = stmt.executeUpdate();
 		
@@ -261,11 +261,13 @@ public class Database {
 		}
 	}
 	
-	public static void updatePipefile(Pipefile pipe, Timestamp modified) throws Exception{
+	public static void updatePipefile(Pipefile pipe) throws Exception{
+		Database.updateAgentConnections(pipe.directoryId, true, pipe.fileId, pipe.access);
+		
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
 			"UPDATE pipefiles " +
-		    "SET name = ?, type = ?, packageName = ?, description = ?, tags = ?, access = ?, " +
+		    "SET name = ?, type = ?, packageName = ?, description = ?, tags = ?, " +
 		    "dataValues = ?, formatType = ?, location = ?, uri = ?, " +
 		    "absolutePath = ?, lastModified = ? " +
 			"WHERE fileId = ?"
@@ -276,17 +278,16 @@ public class Database {
 		stmt.setString(3, pipe.packageName);
 		stmt.setString(4, pipe.description);
 		stmt.setString(5, pipe.tags);
-		stmt.setString(6, pipe.access);
 		
-		stmt.setString(7, pipe.values);
-		stmt.setString(8, pipe.formatType);
-		stmt.setString(9, pipe.location);
-		stmt.setString(10, pipe.uri);
+		stmt.setString(6, pipe.values);
+		stmt.setString(7, pipe.formatType);
+		stmt.setString(8, pipe.location);
+		stmt.setString(9, pipe.uri);
 		
-		stmt.setString(11, pipe.absolutePath);
-		stmt.setTimestamp(12, modified);
+		stmt.setString(10, pipe.absolutePath);
+		stmt.setTimestamp(11, pipe.lastModified);
 		
-		stmt.setInt(13, pipe.fileId);
+		stmt.setInt(12, pipe.fileId);
 		
 		int updated = stmt.executeUpdate();
 		
@@ -296,6 +297,8 @@ public class Database {
 	}
 	
 	public static void deletePipefile(Pipefile pipe) throws Exception{
+		Database.deleteAgentConnections(true, pipe.fileId);
+		
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
 			"DELETE FROM pipefiles " +
@@ -315,11 +318,9 @@ public class Database {
 	////////////////////////////////////////////////////////////
 	
 	/**
-	 * ResultSet is from a query with the following form 
-	 *   SELECT groupId, name, users, COUNT(fileId) 
-	 *   FROM groups AS g JOIN groupPipefileConnections AS gpc ON g.gorupId = gpc.groupId
-	 *   WHERE ...
-	 *   GROUP BY groupId
+	 * ResultSet is from a query with the following form <br>
+	 *   SELECT agentId, dirId, name <br>
+	 *   FROM agents ... <br>
 	 */
 	private static Group[] resultSetToGroupArray(ResultSet rs) throws Exception{
 		ArrayList<Group> list = new ArrayList<Group>();
@@ -328,9 +329,10 @@ public class Database {
 			Group g = new Group();
 			
 			g.groupId = rs.getInt(1);
-			g.name = rs.getString(2);
-			g.users = rs.getString(3);
-			g.dependencies = ( rs.getInt(4) != 0 );
+			g.directoryId = rs.getInt(2);
+			g.name = rs.getString(3);
+			
+			g.users = Database.selectAgents(false, g.groupId);
 			
 			list.add(g);
 		}
@@ -349,10 +351,9 @@ public class Database {
 	public static Group[] selectGroups(int dirId) throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"SELECT groupId, name, users, COUNT(depId) " +
-			"FROM groups AS g LEFT JOIN groupDependencies AS gd ON g.groupId = gd.groupId " +
-			"WHERE directoryId = ?" +
-			"GROUP BY groupId"
+			"SELECT agentId, directoryId, name " +
+			"FROM agents " +
+			"WHERE directoryId = ? AND isGroup = 1"
 		);
 		stmt.setInt(1, dirId);
 		ResultSet rs = stmt.executeQuery();
@@ -360,17 +361,241 @@ public class Database {
 		return resultSetToGroupArray(rs);
 	}
 	
-	/**
-	 *  Select a group's id by name
-	 */
-	public static int selectGroupId(String name) throws Exception{
+	public static Group selectGroupByName(int dirId, String name) throws Exception {
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"SELECT groupId " +
-			"FROM groups " +
-			"WHERE name = ?"
+			"SELECT agentId, directoryId, name " +
+			"FROM agents " +
+			"WHERE directoryId = ? AND name = ? AND isGroup = 1"
 		);
-		stmt.setString(1, name);
+		stmt.setInt(1, dirId);
+		stmt.setString(2, name);
+		ResultSet rs = stmt.executeQuery();
+		Group[] groups = resultSetToGroupArray(rs);
+		
+		if (groups != null && groups.length == 1){
+			return groups[0];
+		}
+		else {
+			return null;
+		}
+	}
+	
+	/**
+	 *  Insert a group
+	 */
+	public static void insertGroup(int dirId, Group group) throws Exception{
+		Database.insertAgent(dirId, group.name, true);
+		int groupId = Database.selectAgentId(dirId, group.name, true);
+		
+		Database.insertAgentConnections(dirId, false, groupId, group.users);
+	}
+	
+	/**
+	 *  Update a group
+	 */
+	public static void updateGroup(Group group) throws Exception{
+		Database.updateAgent(group.groupId, group.name);
+		Database.updateAgentConnections(group.directoryId, false, group.groupId, group.users);
+	}
+	
+	/**
+	 *  Delete a group
+	 */
+	public static void deleteGroup(Group group) throws Exception{
+		// Delete group
+		Database.deleteAgent(group.groupId);
+		
+		// Delete connections used to define the group
+		Database.deleteAgentConnections(false, group.groupId);
+		
+		// Delete connections where this group defined something else
+		Database.deleteGroupConnections(group.groupId);
+	}
+	
+	////////////////////////////////////////////////////////////
+	// FileAgents, GroupAgents
+	///////////////////////////////////////////////////////////
+	
+	/**
+	 * ResultSet is from a query with the following form <br>
+	 *   SELECT agents.name, agents.isGroup <br>
+	 *   FROM ... agents ... <br>
+	 * <p> 
+	 * Returns the agents as a comma separated String
+	 */
+	private static String resultSetToAgentString(ResultSet rs) throws Exception{
+		String ret = "";
+		
+		while (rs.next()){
+			String name = rs.getString(1);
+			boolean isGroup = rs.getBoolean(2);
+			
+			if (isGroup){
+				ret += GroupSyntax.groupnameToAgent(name);
+			} else {
+				ret += name;
+			}
+			
+			ret += ",";
+		}
+		
+		// Remove last ,
+		if (ret.length() > 0){
+			ret = ret.substring(0, ret.length() - 1); 
+		}
+		
+		return ret;
+	}
+	
+	private static String selectAgents(boolean file, int id) throws Exception{
+		String table, tableId;
+		if (file){
+			table = "fileAgents";
+			tableId = "fileId";
+		} else {
+			table = "groupAgents";
+			tableId = "groupId";
+		}
+		
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"SELECT agents.name, agents.isGroup " +
+			"FROM " + table + " JOIN agents ON "+ table + ".agentId = agents.agentId " +
+			"WHERE "+ tableId + " = ?"
+		);
+		stmt.setInt(1, id);
+		ResultSet rs = stmt.executeQuery();
+		
+		return resultSetToAgentString(rs);
+	}
+	
+	private static void insertAgentConnections(int dirId, boolean file, int id, String agentList) throws Exception {
+		// Convert agentList into array of agentIds
+		String[] agentNames = agentList.split(",");
+		int[] agentIds = new int[agentNames.length];
+		
+		for (int i = 0; i < agentNames.length; i++){
+			String agent = agentNames[i];
+			
+			// Trim whitespace
+			agent = agent.trim();
+			
+			// Determine if its a group
+			boolean isGroup = GroupSyntax.isGroup(agent);
+			if (isGroup){
+				agent = GroupSyntax.agentToGroupname(agent);
+			}
+			
+			if (!agent.equals("")){
+				agentIds[i] = getAgentId(dirId, agent, isGroup);
+			} else {
+				agentIds[i] = -1; // Invalid
+			}
+		}
+		
+		// Set up query to insert rows in fileAgents or groupAgents
+		String table, tableId;
+		if (file){
+			table = "fileAgents";
+			tableId = "fileId";
+		} else {
+			table = "groupAgents";
+			tableId = "groupId";
+		}
+		
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"INSERT INTO " + table + " (" + tableId + ", agentId) " +
+			"VALUES (?, ?) "
+		);
+		stmt.setInt(1, id);
+		
+		// For each agent add a row
+		for (int agentId : agentIds){
+			if (agentId != -1){
+				stmt.setInt(2, agentId);
+				int inserted = stmt.executeUpdate();
+				
+				if (inserted != 1){
+					throw new Exception("Failed to insert row into '" + table + "' table");
+				}
+			}
+		}
+	}
+	
+	private static void updateAgentConnections(int dirId, boolean file, int id, String agentList) throws Exception{
+		deleteAgentConnections(file, id);
+		insertAgentConnections(dirId, file, id, agentList);
+	}
+	
+	private static void deleteAgentConnections(boolean file, int id) throws Exception{
+		String table, tableId;
+		if (file){
+			table = "fileAgents";
+			tableId = "fileId";
+		} else {
+			table = "groupAgents";
+			tableId = "groupId";
+		}
+		
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"DELETE FROM " + table + " " +
+			"WHERE " + tableId + " = ?"	
+		);
+		stmt.setInt(1, id);
+		stmt.executeUpdate();
+		
+		// In case we created some agents that are no longer used, go delete them
+		Database.deleteUnusedAgents();
+	}
+	
+	private static void deleteGroupConnections(int groupId) throws Exception {
+		Connection con = getDatabaseConnection();
+		
+		// Delete connections to files
+		PreparedStatement stmt = con.prepareStatement(
+			"DELETE FROM fileAgents "+
+			"WHERE agentId = ?"	
+		);
+		stmt.setInt(1, groupId);
+		stmt.executeUpdate();
+		
+		// Delete connections to groups
+		stmt = con.prepareStatement(
+			"DELETE FROM groupAgents "+
+			"WHERE agentId = ?"	
+		);
+		stmt.setInt(1, groupId);
+		stmt.executeUpdate();
+	}
+	
+	////////////////////////////////////////////////////////////
+	// Agents
+	///////////////////////////////////////////////////////////
+	
+	private static int getAgentId(int dirId, String name, boolean isGroup)throws Exception{
+		int id = selectAgentId(dirId, name, isGroup);
+		
+		if (id == -1){
+			insertAgent(dirId, name, isGroup);
+			id = selectAgentId(dirId, name, isGroup);
+		}
+		
+		return id;
+	}
+	
+	private static int selectAgentId(int dirId, String name, boolean isGroup) throws Exception{
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"SELECT agentId " +
+			"FROM agents " +
+			"WHERE directoryId = ? AND name = ? AND isGroup = ?"
+		);
+		stmt.setInt(1, dirId);
+		stmt.setString(2, name);
+		stmt.setBoolean(3, isGroup);
 		ResultSet rs = stmt.executeQuery();
 		
 		if (rs.next()){
@@ -380,132 +605,65 @@ public class Database {
 		}
 	}
 	
-	public static Group selectGroupByName(String name) throws Exception {
+	private static void insertAgent(int dirId, String name, boolean isGroup) throws Exception{
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"SELECT groupId, name, users, COUNT(depId) " +
-			"FROM groups AS g LEFT JOIN groupDependencies AS gd ON g.groupId = gd.groupId " +
-			"WHERE name = ? " + 
-			"GROUP BY groupId"
-		);
-		stmt.setString(1, name);
-		ResultSet rs = stmt.executeQuery();
-		Group[] groups = resultSetToGroupArray(rs);
-		
-		if (groups.length == 1) //should only be 1 if group name is unique
-			return groups[0];
-		else
-			return null;
-	}
-	
-	/**
-	 *  Insert a group
-	 */
-	public static void insertGroup(int dirId, Group group) throws Exception{
-		Connection con = getDatabaseConnection();
-		PreparedStatement stmt = con.prepareStatement(
-			"INSERT INTO groups (directoryId, name, users) " +
+			"INSERT INTO agents (directoryId, name, isGroup) " +
 			"VALUES (?, ?, ?)"
 		);
 		stmt.setInt(1, dirId);
-		stmt.setString(2, group.name);
-		stmt.setString(3, group.users);
-		
+		stmt.setString(2, name);
+		stmt.setBoolean(3, isGroup);
 		int inserted = stmt.executeUpdate();
 		
 		if (inserted != 1){
-			throw new Exception("Failed to insert row into 'groups' table");
+			throw new Exception("Failed to insert row into 'agents' table");
 		}
 	}
 	
-	/**
-	 *  Update a group
-	 */
-	public static void updateGroup(Group group) throws Exception{
+	private static void updateAgent(int agentId, String name) throws Exception {
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"UPDATE groups " +
-		    "SET name = ?, users = ? " +
-			"WHERE groupId = ?"
+			"UPDATE agents " +
+			"SET name = ? " +
+			"WHERE agentId = ?"
 		);
-		
-		stmt.setString(1, group.name);
-		stmt.setString(2, group.users);
-		stmt.setInt(3, group.groupId);
-		
+		stmt.setString(1, name);
+		stmt.setInt(2, agentId);
 		int updated = stmt.executeUpdate();
 		
 		if (updated != 1){
-			throw new Exception("Failed to update row in 'groups' table");
+			throw new Exception("Failed to update row in 'agents' table");
 		}
 	}
 	
-	/**
-	 *  Delete a group
-	 */
-	public static void deleteGroup(Group group) throws Exception{
+	private static void deleteAgent(int agentId) throws Exception {
 		Connection con = getDatabaseConnection();
 		PreparedStatement stmt = con.prepareStatement(
-			"DELETE FROM groups " +
-			"WHERE groupId = ?" 		
+			"DELETE FROM agents " +
+			"WHERE agentId = ?"
 		);
-		stmt.setInt(1, group.groupId);
-		
-		int deleted = stmt.executeUpdate();
-		
-		if (deleted != 1){
-			throw new Exception("Failed to delete row from 'groups' table");
-		}
-	}
-	
-	////////////////////////////////////////////////////////////
-	// GroupPipefileCOnnections
-	////////////////////////////////////////////////////////////
-	
-	/**
-	 * Inserts a group dependency such that the 
-	 * object specified by depType and depId is dependent 
-	 * on the definition of the group specified by groupId
-	 * 
-	 * @param groupId 
-	 * @param depType 0 for group, 1 for file
-	 * @param depId
-	 * @throws Exception
-	 */
-	public static void insertGroupDependency(int groupId, int depType, int depId) throws Exception{
-		Connection con = getDatabaseConnection();
-		PreparedStatement stmt = con.prepareStatement(
-			"INSERT INTO groupDependencies (groupId, depType, depId) " +
-			"VALUES (?, ?, ?)"
-		);
-		stmt.setInt(1, groupId);
-		stmt.setInt(2, depType);
-		stmt.setInt(3, depId);
-		
-		int inserted = stmt.executeUpdate();
-		
-		if (inserted != 1){
-			throw new Exception("Failed to insert row into 'groupDependencies' table");
-		}
-	}
-	
-	/**
-	 * Deletes all group dependencies for the 
-	 * object specified by depType and depId
-	 * 
-	 * @param depTyp 0 for group, 1 for file
-	 * @param depId
-	 * @throws Exception
-	 */
-	public static void deleteGroupDependency(int depType, int depId) throws Exception{
-		Connection con = getDatabaseConnection();
-		PreparedStatement stmt = con.prepareStatement(
-			"DELETE FROM groupDependencies " +
-			"WHERE depType = ? AND depId = ?" 		
-		);
-		stmt.setInt(1, depType);
-		stmt.setInt(2, depId);
-		
+		stmt.setInt(1, agentId);
 		stmt.executeUpdate();
+	}
+	
+	private static void deleteUnusedAgents() throws Exception {
+		Connection con = getDatabaseConnection();
+		PreparedStatement stmt = con.prepareStatement(
+			"SELECT agents.agentId " +
+			"FROM agents " +
+				"LEFT JOIN fileAgents ON agents.agentId = fileAgents.agentId " +
+				"LEFT JOIN groupAgents ON agents.agentId = groupAgents.agentId " +
+			"WHERE agents.isGroup = 0 " +
+				"AND fileAgents.fileId IS NULL " +
+				"AND groupAgents.groupId IS NULL " +
+			"GROUP BY agents.agentId "
+		);
+		ResultSet rs = stmt.executeQuery();
+		
+		while (rs.next()){
+			int agentId = rs.getInt(1);
+			Database.deleteAgent(agentId);
+		}
 	}
 }

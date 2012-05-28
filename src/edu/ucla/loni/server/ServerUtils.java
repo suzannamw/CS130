@@ -7,7 +7,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.sql.Timestamp;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -379,10 +378,80 @@ public class ServerUtils {
 	
 	
 	//------------------------------------------------------------
-	// Read 
+	// Read (readAccessFileGroup is a helper)
 	//------------------------------------------------------------
 	
-	// TODO
+	public static String readAccessFileGroup(Element parentEle){
+		String rs = "";
+		
+		for (Element agent: parentEle.getChildren()){
+			String agentName = agent.getValue();
+			String groupAttr = agent.getAttributeValue("group");
+			
+			boolean isGroup = groupAttr.equals("true");
+			
+			if (isGroup){
+				agentName = GroupSyntax.groupnameToAgent(agentName);
+			}
+			
+			rs += agentName + ",";	
+		}
+		
+		return rs.substring(0, rs.length()-1); // get rid of last ,
+	}
+	
+	/**
+	 * Reads the access file for the root directory
+	 * @throws Exception 
+	 */
+	public static void readAccessFile(Directory root) throws Exception {
+		File accessFile = ServerUtils.getAccessFile(root);
+		if (!accessFile.exists()){
+			return;
+		}
+		
+		Document doc = readXML(accessFile);
+		Element access = doc.getRootElement();
+		Element filesRoot = access.getChild("files");
+		Element groupsRoot = access.getChild("groups");
+		
+		if (filesRoot.getChildren() != null) {
+			for (Element pipe: filesRoot.getChildren()){
+				String packageName = pipe.getAttributeValue("package");
+				String type = pipe.getAttributeValue("type");
+				String name = pipe.getAttributeValue("name");
+				
+				// Get the pipefile
+				Pipefile thisPipe = Database.selectPipefileByHierarchy(root.dirId, packageName, type, name);
+				
+				if (thisPipe != null){
+					thisPipe.access = readAccessFileGroup(pipe);;
+					Database.updatePipefile(thisPipe);
+				}
+			}
+		}
+		
+		if (groupsRoot.getChildren() != null) {
+			for (Element group: groupsRoot.getChildren()) {
+				String name = group.getAttributeValue("name");
+				String userString = readAccessFileGroup(group);
+				
+				// Get the group
+				Group thisGroup = Database.selectGroupByName(root.dirId, name);
+				
+				if (thisGroup == null){
+					thisGroup = new Group();
+					thisGroup.name = name;
+					thisGroup.users = userString;
+					Database.insertGroup(root.dirId, thisGroup);
+				} 
+				else {
+					thisGroup.users = userString;
+					Database.updateGroup(thisGroup);
+				}
+			}
+		}
+	}
 	
 	//------------------------------------------------------------
 	// Write (agentElement is a helper)
@@ -397,7 +466,7 @@ public class ServerUtils {
 		String value, group;
 		
 		if (GroupSyntax.isGroup(agent)){
-			value = GroupSyntax.agentToGroup(agent);
+			value = GroupSyntax.agentToGroupname(agent);
 			group = "true";
 		} else {
 			value = agent;
@@ -451,7 +520,9 @@ public class ServerUtils {
 					// Add agents
 					String[] agents = p.access.split(",");
 					for (String agent : agents) {
-						file.addContent(agentElement(agent));
+						if (!agent.equals("")){
+							file.addContent(agentElement(agent));
+						}
 					}
 					
 					// Add to file element to files
@@ -478,7 +549,9 @@ public class ServerUtils {
 				// Add agents
 				String[] agents = g.users.split(",");
 				for (String agent : agents) {
-					group.addContent(agentElement(agent));
+					if (!agent.equals("")){
+						group.addContent(agentElement(agent));
+					}
 				}
 				
 				// Add group element to groups
@@ -492,76 +565,5 @@ public class ServerUtils {
 		// Update when the access file was written
 		root.accessModified = new Timestamp( accessFile.lastModified() );
 		Database.updateDirectory(root);
-	}
-	
-	public static String readAccessFileGroup(Element parentEle)
-	{
-		String rs = "";
-		for (Element agent: parentEle.getChildren())
-		{
-			boolean isGroup = agent.getAttributeValue("group") == "true";
-			String agentName = agent.getValue();
-			if (isGroup)
-				agentName = "[" + agentName + "]";
-			rs += agentName + ",";	
-		}
-		return rs.substring(0, rs.length()-1); // get rid of last ,
-	}
-	
-	/**
-	 * Reads the access file for the root directory
-	 * @throws Exception 
-	 */
-	public static void readAccessFile(Directory root) throws Exception{
-		
-		String accessFilePath = root.absolutePath + File.separator + ".access.xml";
-		File f = new File(accessFilePath);
-		if (!f.exists())
-			return;
-		Document doc = readXML(f);
-		Element access = doc.getRootElement();
-		Element filesRoot = access.getChild("files");
-		Element groupsRoot = access.getChild("groups");
-		
-		int dirId = root.dirId;
-		if (filesRoot.getChildren() != null) {
-			for (Element pipe: filesRoot.getChildren())
-			{
-				String type = pipe.getAttributeValue("type");
-                                    String name = pipe.getAttributeValue("name");
-				String packageName = pipe.getAttributeValue("package");
-				
-				//get pipefile by path
-				Pipefile thisPipe = Database.selectPipefileByHierarchy(dirId, packageName, type, name);
-				
-				// build access string
-				String accessString = readAccessFileGroup(pipe);
-				
-				//change access of pipefile
-				thisPipe.access = accessString;
-				
-				//save changes to database
-				File pipeFile = new File(thisPipe.absolutePath);
-				Timestamp oldTime = new Timestamp(pipeFile.lastModified());
-				Database.updatePipefile(thisPipe, oldTime);
-				
-			}
-		}
-		
-		if (groupsRoot.getChildren() != null) {
-			for (Element group: groupsRoot.getChildren())
-			{
-				String name = group.getAttributeValue("name");
-				
-				//get Group by name from db
-				Group thisGroup = Database.selectGroupByName(name);
-				
-				String userString = readAccessFileGroup(group);
-				thisGroup.users = userString;
-				
-				//update this to db
-				Database.updateGroup(thisGroup);
-			}
-		}
 	}
 }

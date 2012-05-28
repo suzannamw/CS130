@@ -21,5 +21,5 @@ public interface FileService extends RemoteService {
 	
 	Group[]		getGroups(Directory root) throws Exception;
 	void		updateGroup(Directory root, Group group) throws Exception;
-	void		removeGroups(Directory root, Group[] groups, boolean deleteReferences) throws Exception;
+	void		removeGroups(Directory root, Group[] groups) throws Exception;
 }
