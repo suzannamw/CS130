@@ -1311,7 +1311,12 @@ public class ServerLibraryManager implements EntryPoint {
 		// Set the value of the fields
 		form.setValue("name", pipe.name);
 		form.setValue("package", pipe.packageName);
-		form.setValue("type", pipe.type);
+		if(pipe.type.equals("Modules"))
+			form.setValue("type", "Module");
+		else if(pipe.type.equals("Groups"))
+			form.setValue("type", "Group");
+		else 
+			form.setValue("type", pipe.type);
 		form.setValue("description", pipe.description);
 		form.setValue("tags",pipe.tags);
 		form.setValue("access", pipe.access);
