@@ -1250,15 +1250,16 @@ public class ServerLibraryManager implements EntryPoint {
         formatType.setTitle("Value Format Type");  
         formatType.setType("comboBox");  
         formatType.setName("formatType");
-        formatType.setValueMap("String", "Directory", "File", "Number");
-	
+        final String str="String", dir="Directory", file="File", num="Number";
+        formatType.setValueMap(str, dir, file, num);
+        
 		TextAreaItem values = new TextAreaItem();
 		values.setTitle("Values");
 		values.setName("values");
 		values.setWidth(width);
 		values.setHint("Newline separated list<br/>"); 
 		
-		TextItem valuesPrefix = new TextItem();
+		final TextItem valuesPrefix = new TextItem();
 		valuesPrefix.setTitle("Values Prefix");
 		valuesPrefix.setName("valuesPrefix");
 		valuesPrefix.setWidth(width);
@@ -1288,6 +1289,16 @@ public class ServerLibraryManager implements EntryPoint {
 		final StaticTextItem accessInfo = new StaticTextItem();
 		accessInfo.setTitle("Access Groups Expanded");
 		
+		formatType.addChangedHandler(new ChangedHandler(){
+			public void onChanged(ChangedEvent event){
+				if(form.getValueAsString("formatType").equals(num)){
+					valuesPrefix.disable();
+				}
+				else
+					valuesPrefix.enable();
+			}
+		});
+		
 		access.addChangedHandler(new ChangedHandler(){
 			public void onChanged(ChangedEvent event){
 				expandGroups("", access.getValueAsString(), accessInfo);
@@ -1312,18 +1323,32 @@ public class ServerLibraryManager implements EntryPoint {
 			
 			RegExp split = RegExp.compile("\n", "m");
 			SplitResult vals = split.split(pipe.values);
-			RegExp re = RegExp.compile("(.*://.*/)?(.*)");
+			RegExp re = RegExp.compile("((.*/)*)(.*)");
 			
 			for (int j = 0; j<vals.length(); j++){
 				MatchResult m = re.exec(vals.get(j));
-				if(m != null){
-					valString += m.getGroup(2) + "\n";
-					pipe.valuesPrefix = m.getGroup(1);
+				if(m != null && m.getGroup(0) !=null && m.getGroup(0).length()>0){
+					//check if group is null before assigning
+					if(m.getGroup(3) != null)
+						valString += m.getGroup(3) + "\n";
+					if(j==0){
+						if(m.getGroup(2) != null)
+							pipe.valuesPrefix = m.getGroup(2);
+					}else{
+						
+						if(m.getGroup(2) == null || !pipe.valuesPrefix.equals(m.getGroup(2))){
+							pipe.valuesPrefix = "";
+						}
+					}
 				}
+				if(pipe.valuesPrefix.equals(""))
+					valString = pipe.values;
 			}
 			form.setValue("formatType", pipe.formatType);
-			if(pipe.formatType.equals("File") || pipe.formatType.equals("Directory"))
+			if(pipe.formatType.equals(file) || pipe.formatType.equals(dir) || pipe.formatType.equals(str))
 				form.setValue("valuesPrefix", pipe.valuesPrefix);
+			else
+				valuesPrefix.disable();
 			form.setValue("values", valString);
 		}
 		else{
@@ -1381,17 +1406,22 @@ public class ServerLibraryManager implements EntryPoint {
 				
 				if(pipe.type.equals("Data")){
 					String valString = "";
-					
-					pipe.valuesPrefix = form.getValueAsString("valuesPrefix");
-					RegExp split = RegExp.compile("\n", "m");
-					SplitResult vals = split.split(form.getValueAsString("values"));
-					
-					for (int j = 0; j<vals.length(); j++){
-						if(vals.get(j).length()==0)
-							continue;
-						valString += pipe.valuesPrefix + vals.get(j) +  "\n";
+					if(form.getValueAsString("formatType").equals(num)){
+						valString = form.getValueAsString("values");
 					}
-					
+					else{	//append prefix
+						pipe.valuesPrefix = form.getValueAsString("valuesPrefix");
+						if(pipe.valuesPrefix == null)
+							pipe.valuesPrefix = "";
+						RegExp split = RegExp.compile("\n", "m");
+						SplitResult vals = split.split(form.getValueAsString("values"));
+						
+						for (int j = 0; j<vals.length(); j++){
+							if(vals.get(j).length()==0)
+								continue;
+							valString += pipe.valuesPrefix + vals.get(j) +  "\n";
+						}
+					}
 					pipe.values = valString;
 					pipe.formatType = form.getValueAsString("formatType");
 				}
