@@ -1404,7 +1404,7 @@ public class ServerLibraryManager implements EntryPoint {
 				
 				pipe.name = newName;
 				pipe.packageName = newPackageName;
-				pipe.type = form.getValueAsString("type");
+				// pipe.type is not editable
 				pipe.description = form.getValueAsString("description");
 				pipe.tags = form.getValueAsString("tags");
 				pipe.access = form.getValueAsString("access");
