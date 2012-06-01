@@ -73,30 +73,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Update the database for this root
 	 */
 	private void updateDatabase(Directory root) throws Exception {
-		// Get the time the monitor file was modified
-		Timestamp monitorModified = null;
-		File monitorFile = ServerUtils.getMonitorFile(root);
-		if (monitorFile.exists()){
-			monitorModified = new Timestamp(monitorFile.lastModified());
-		}
-		
-		// Get the time the access file was modified
-		Timestamp accessModified = null;
-		File accessFile = ServerUtils.getAccessFile(root);
-		if (accessFile.exists()){
-			accessModified = new Timestamp(accessFile.lastModified());
-		}
-		
-		// If use monitor file has not changed
-		if (monitorModified != null){
-			if (monitorModified.equals(root.monitorModified)){
-				return;
-			} else {
-				root.monitorModified = monitorModified;
-				Database.updateDirectory(root);
-			}
-		}
-		
 		// Clean the database
 		cleanDatabase(root);
 		
@@ -136,13 +112,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 					Database.updatePipefile(pipe);
 				}
  		    }
-		}
-		
-		// If access exists and has been changed
-		if (accessModified != null && !accessModified.equals(root.accessModified)){
-			ServerUtils.readAccessFile(root);
-		} else {
-			ServerUtils.writeAccessFile(root);
 		}
 	}
 	
@@ -314,8 +283,35 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public Pipefile[] getFiles(Directory root) throws Exception {
 		try {
-			updateDatabase(root);
+			// Check monitorFile and if needed update the database
+			Timestamp monitorModified = null;
+			File monitorFile = ServerUtils.getMonitorFile(root);
+			if (monitorFile.exists()){
+				monitorModified = new Timestamp(monitorFile.lastModified());
+			}
+			
+			if (monitorModified != null){
+				if (!monitorModified.equals(root.monitorModified)){
+					root.monitorModified = monitorModified;
+					Database.updateDirectory(root);
+					updateDatabase(root);
+				}
+			}
+			
+			// Check accessFile and read or write it
+			Timestamp accessModified = null;
+			File accessFile = ServerUtils.getAccessFile(root);
+			if (accessFile.exists()){
+				accessModified = new Timestamp(accessFile.lastModified());
+			}
+			
+			if (accessModified != null && !accessModified.equals(root.accessModified)){
+				ServerUtils.readAccessFile(root);
+			} else {
+				ServerUtils.writeAccessFile(root);
+			}
 				
+			// Return all the pipefiles
 			return Database.selectPipefiles(root.dirId);
 		} 
 		catch (Exception e) {
