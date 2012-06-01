@@ -1126,6 +1126,9 @@ public class ServerLibraryManager implements EntryPoint {
 				
 				selected = new Pipefile[] { pipe };
 				viewFile(pipe);
+				//when single file is selected from the workarea's list,
+				//remaining items will get deselected
+				treeGrid.deselectAllRecords();
 			}
 		});
 		
