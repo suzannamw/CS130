@@ -178,8 +178,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		//if duplicate exists, than above function "newAbsolutePath" will create new unique name of the form pipe.name + "_(" + INTEGERE + ")"
 		//in that case we also have to update name inside pipe class so that both Database and client's tree of pipefiles will correctly reflect
 		//new pipefile duplicate
-		if( dest.getName() != pipe.name )
-			pipe.name = dest.getName();
+		if( dest.getName().replaceAll(".pipe", "") != pipe.name )
+			pipe.name = dest.getName().replaceAll(".pipe", "");
 		
 		// If the destination directory does not exist, create it and necessary parent directories
 		File destDir = dest.getParentFile();
