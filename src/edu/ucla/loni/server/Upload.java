@@ -33,7 +33,7 @@ public class Upload extends HttpServlet {
 		// Update the packageName
 		if (packageName != null && packageName.length() > 0){
 			pipe.packageName = packageName;
-			doc = ServerUtils.updateXML(doc, pipe, true);
+			doc = ServerUtils.updateXML(doc, pipe);
 		}
 		
 		// Write the document

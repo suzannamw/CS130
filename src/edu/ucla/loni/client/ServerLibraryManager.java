@@ -976,6 +976,14 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Ensure tree is displayed
 	 */
 	private void updateFullTree(){
+		// Remove the back button to the last pipefile
+		lastPipefileId = -1;
+		updateBackToLastPipefile();
+		
+		// Clear the selection
+		treeGrid.deselectAllRecords();
+		updateSelected();
+		
 		fullTree.removeList(fullTree.getDescendants());
 		treeGrid.setData(fullTree);
 		getFiles();
@@ -986,6 +994,10 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Ensure results are displayed
 	 */
 	private void updateResultsTree(final String query){
+		// Clear the selection
+		treeGrid.deselectAllRecords();
+		updateSelected();
+				
 		treeGrid.setData(resultsTree);
 		getSearchResults(query);
 	}
@@ -1032,7 +1044,10 @@ public class ServerLibraryManager implements EntryPoint {
 		copy.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
 				String value = combo.getValueAsString();
-				if (!value.equals("")){
+				
+				if (value == null || value.equals("")){
+					SC.say("Please specify a package");
+				} else {
 					copyFiles(pipefiles, value);
 				}
 			}
@@ -1041,7 +1056,10 @@ public class ServerLibraryManager implements EntryPoint {
 		move.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event){
 				String value = combo.getValueAsString();
-				if (!value.equals("")){
+				
+				if (value == null || value.equals("")){
+					SC.say("Please specify a package");
+				} else {
 					moveFiles(pipefiles, value);
 				}
 			}
@@ -1712,7 +1730,7 @@ public class ServerLibraryManager implements EntryPoint {
 		});
 		
 		Label uploadDescription = new Label (
-			"Select local files to upload. Accespts \".zip\" and \".pipe\" files."
+			"Select local files to upload. Accepts \".pipe\" files only. All other files are discarded."
 		);
 		uploadDescription.setHeight(30);
 		uploadDescription.setWidth(500);
@@ -1756,7 +1774,7 @@ public class ServerLibraryManager implements EntryPoint {
 					success("Successfully uploaded files");
 				}
 				else {
-					error("ERROR :: " + event.getResults());
+					error("Failed to upload files: " + event.getResults());
 				}
 				
 				updateFullTree();
@@ -1863,6 +1881,12 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Clears the workarea
 	 */
 	private void clearWorkarea(){
+		updateBackToLastPipefile();
+		
+		workarea.removeMembers(workarea.getMembers());
+	}
+	
+	private void updateBackToLastPipefile(){
 		if (lastPipefileId != -1){
 			if (pipes.containsKey(lastPipefileId)){
 				Pipefile pipe = pipes.get(lastPipefileId);
@@ -1870,9 +1894,8 @@ public class ServerLibraryManager implements EntryPoint {
 				backToLastPipefile.show();
 			} else {
 				lastPipefileId = -1;
+				backToLastPipefile.hide();
 			}
 		}
-		
-		workarea.removeMembers(workarea.getMembers());
 	}
 }

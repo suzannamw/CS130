@@ -38,14 +38,16 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	private ArrayList<File> getAllPipefilesRecursive(File dir, int level){
 		ArrayList<File> files = new ArrayList<File>();
 		
-		for (File file : dir.listFiles()){
-			if (file.isDirectory() && level > 0){
-				files.addAll( getAllPipefilesRecursive(file, (level - 1)) );
-			} 
-			else {
-				String name = file.getName();
-				if (name.endsWith(".pipe")){
-					files.add(file);
+		if (level >= 0){		
+			for (File file : dir.listFiles()){
+				if (file.isDirectory()){
+					files.addAll( getAllPipefilesRecursive(file, (level - 1)) );
+				} 
+				else {
+					String name = file.getName();
+					if (name.endsWith(".pipe")){
+						files.add(file);
+					}
 				}
 			}
 		}
@@ -174,12 +176,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		String destPath = ServerUtils.newAbsolutePath(root.absolutePath, packageName, pipe.type, pipe.name);
 		File dest = new File(destPath);
 		
-		//check for duplicate file existence
-		//if duplicate exists, than above function "newAbsolutePath" will create new unique name of the form pipe.name + "_(" + INTEGERE + ")"
-		//in that case we also have to update name inside pipe class so that both Database and client's tree of pipefiles will correctly reflect
-		//new pipefile duplicate
-		if( destPath.contains("_(") && destPath.contains(")") && destPath.lastIndexOf(")") > destPath.lastIndexOf("_(") )
-			pipe.name = pipe.name + "_(" + destPath.substring(destPath.lastIndexOf("_(") + 2, destPath.lastIndexOf(")")) + ")";
+		// Update the name if the filename had to be saved as something else
+		String filename = dest.getName().replaceAll(".pipe", "").replace("_", " ");
+		if (!pipe.name.equals(filename)){
+			pipe.name = filename;
+		}
 		
 		// If the destination directory does not exist, create it and necessary parent directories
 		File destDir = dest.getParentFile();
@@ -221,7 +222,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				
 		// Update XML
 		Document doc = ServerUtils.readXML(dest);
-		doc = ServerUtils.updateXML(doc, pipe, true);
+		doc = ServerUtils.updateXML(doc, pipe);
 		ServerUtils.writeXML(dest, doc);
 			
 		// Update Database
@@ -240,10 +241,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	////////////////////////////////////////////////////////////
 	
 	/**
-	 *  Returns a FileTree that represents the root directory
-	 *  <br>
-	 *  Thus the children are the packages
-	 *  @param root the absolute path of the root directory
+	 *  Returns the directory object for the absolutePath
 	 */
 	public Directory getDirectory(String absolutePath) throws Exception {
 		try {
@@ -252,19 +250,8 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 				Directory root = Database.selectDirectory(rootDir.getAbsolutePath());
 				
 				if (root == null){
-					// Get the time the monitor file was modified
-					Timestamp monitorModified = null;
-					File monitor = new File(absolutePath + File.separator + ".monitorfile");
-					if (monitor.exists()){
-						monitorModified = new Timestamp(monitor.lastModified());
-					}
-					
-					// Get the time the access file was modified
-					Timestamp accessModified = null;
-					File access = new File(absolutePath + File.separator + ".access.xml");
-					if (access.exists()){
-						accessModified = new Timestamp(access.lastModified());
-					}
+					Timestamp monitorModified =  ServerUtils.getMonitorFileModified(root);
+					Timestamp accessModified =  ServerUtils.getAccessFileModified(root);
 					
 					Database.insertDirectory(rootDir.getAbsolutePath(), monitorModified, accessModified);
 					root = Database.selectDirectory(rootDir.getAbsolutePath());
@@ -283,39 +270,26 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
-	 *  Returns a FileTree that represents the root directory
-	 *  <br>
-	 *  Thus the children are the packages
-	 *  @param root the absolute path of the root directory
+	 *  Returns an array of all the pipefiles
 	 */
 	public Pipefile[] getFiles(Directory root) throws Exception {
 		try {
-			// Check monitorFile and if needed update the database
-			Timestamp monitorModified = null;
-			File monitorFile = ServerUtils.getMonitorFile(root);
-			if (monitorFile.exists()){
-				monitorModified = new Timestamp(monitorFile.lastModified());
+			
+			// If there is not monitorFile or the monitorFile has been modified, update the database
+			Timestamp monitorModified =  ServerUtils.getMonitorFileModified(root);
+
+			if (monitorModified == null || !monitorModified.equals(root.monitorModified)){
+				root.monitorModified = monitorModified;
+				Database.updateDirectory(root);
+				updateDatabase(root);
 			}
 			
-			if (monitorModified != null){
-				if (!monitorModified.equals(root.monitorModified)){
-					root.monitorModified = monitorModified;
-					Database.updateDirectory(root);
-					updateDatabase(root);
-				}
-			}
+			// If the accessFile has been modified
+			Timestamp accessModified =  ServerUtils.getAccessFileModified(root);
 			
-			// Check accessFile and read or write it
-			Timestamp accessModified = null;
-			File accessFile = ServerUtils.getAccessFile(root);
-			if (accessFile.exists()){
-				accessModified = new Timestamp(accessFile.lastModified());
-			}
-			
+			// If the accessFile has been modified
 			if (accessModified != null && !accessModified.equals(root.accessModified)){
 				ServerUtils.readAccessFile(root);
-			} else {
-				ServerUtils.writeAccessFile(root);
 			}
 				
 			// Return all the pipefiles
@@ -328,9 +302,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
-	 *  Returns a FileTree where the children are all files and are the search results
-	 *  @param root the absolute path of the root directory
-	 *  @param query what the user is searching for
+	 *  Returns an array of all the pipefiles that match the query
 	 */
 	public Pipefile[] getSearchResults(Directory root, String query) throws Exception{
 		try {
@@ -344,7 +316,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	
 	/**
 	 *  Updates the file on the server
-	 *  @param pipe Pipefile representing the updated file
 	 */
 	public void updateFile(Directory root, Pipefile pipe) throws Exception{
 		try {
@@ -352,13 +323,19 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			
 			// Update the XML
 			Document doc = ServerUtils.readXML(file);
-			doc = ServerUtils.updateXML(doc, pipe, false);
+			doc = ServerUtils.updateXML(doc, pipe);
 			ServerUtils.writeXML(file, doc);
 			
 			// Update the filename if the name changed
 			if (pipe.nameUpdated || pipe.packageUpdated){
 				String destPath = ServerUtils.newAbsolutePath(root.absolutePath, pipe.packageName, pipe.type, pipe.name);
 				File dest = new File(destPath);
+				
+				// Update the name if the filename had to be saved as something else
+				String filename = dest.getName().replaceAll(".pipe", "").replace("_", " ");
+				if (!pipe.name.equals(filename)){
+					pipe.name = filename;
+				}
 				
 				// Create parent folders if needed
 				File destDir = dest.getParentFile();
@@ -399,8 +376,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	
 	/**
 	 *  Removes files from the server
-	 *  @param filenames absolute paths of the files
-	 * @throws SQLException 
 	 */
 	public void removeFiles(Directory root, Pipefile[] pipes) throws Exception {
 		try {
@@ -420,8 +395,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	
 	/**
 	 *  Copies files from the server to the proper package
-	 *  @param filenames absolute paths of the files
-	 *  @param packageName absolute path of the package
 	 */
 	public void copyFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception {		
 		try {
@@ -441,9 +414,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	
 	/**
 	 *  Moves files from the server to the proper package
-	 *  @param filenames absolute paths of the files
-	 *  @param packageName absolute path of the package
-	 *  @throws Exception 
 	 */
 	public void moveFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception{
 		try {
@@ -475,8 +445,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
-	 *  Inserts or Updates a group on the server (also used for creating groups)
-	 *  @param group group to be updated
+	 *  Inserts or Updates a group on the server
 	 */
 	public void	updateGroup(Directory root, Group group) throws Exception{
 		try {			
@@ -497,8 +466,7 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	}
 	
 	/**
-	 *  Deletes groups on the server (also used for creating groups)
-	 *  @param group group to be updated
+	 *  Deletes groups on the server
 	 */
 	public void	removeGroups(Directory root, Group[] groups) throws Exception{
 		try {			

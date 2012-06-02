@@ -249,84 +249,82 @@ public class ServerUtils {
 	 * Updates a Document (XML file) with all the attributes from a Pipefile
 	 * @throws Exception 
 	 */
-	public static Document updateXML(Document doc, Pipefile pipe, boolean packageOnly) throws Exception{
+	public static Document updateXML(Document doc, Pipefile pipe) throws Exception{
 		Element main = getMainElement(doc);
 		
+		// Update name (attribute)
+		main.setAttribute("name", pipe.name);
+		// Update package (attribute)
 		main.setAttribute("package", pipe.packageName);
+		// Update description (attribute)
+		main.setAttribute("description", pipe.description);
 		
-		if (!packageOnly){
-			// Update name (attribute)
-			main.setAttribute("name", pipe.name);
-			// Update description (attribute)
-			main.setAttribute("description", pipe.description);
+		// Update the tags (children)
+		main.removeChildren("tag"); // Remove all old tags
+		String tags = pipe.tags;
+		if (tags != null && tags.length() > 0){
+			String[] tagArray = tags.split(",");
+			for (String tag : tagArray){
+				Element child = new Element("tag");
+				child.setText(tag);
+				main.addContent(child);
+			}
+		}
+	
+		if (pipe.type.equals("Data")){
+			// Update values (values child => children)
+			Element valuesElement = main.getChild("values");
+			if (valuesElement == null){
+				valuesElement = new Element("values");
+				main.addContent(valuesElement);
+			}
 			
-			// Update the tags (children)
-			main.removeChildren("tag"); // Remove all old tags
-			String tags = pipe.tags;
-			if (tags != null && tags.length() > 0){
-				String[] tagArray = tags.split(",");
-				for (String tag : tagArray){
-					Element child = new Element("tag");
-					child.setText(tag);
-					main.addContent(child);
+			valuesElement.removeChildren("value"); // Remove all old values
+			
+			String values = pipe.values;
+			if (values != null && values.length() > 0){
+				String[] valueArray = values.split("\n");
+				for (String value : valueArray){
+					Element valueElement = new Element("value");
+					valueElement.setText(value);
+					valuesElement.addContent(valueElement);
 				}
 			}
+			
+			// Update formatType (output child => format child => attribute)
+			Element output = main.getChild("output");
+			if (output == null){
+				output = new Element("output");
+				main.addContent(output);
+			}
+			
+			Element format = output.getChild("format");
+			if (format == null){
+				format = new Element("format");
+				main.addContent(format);
+			}
+			
+			format.setAttribute("type", pipe.formatType);
+		}
 		
-			if (pipe.type.equals("Data")){
-				// Update values (values child => children)
-				Element valuesElement = main.getChild("values");
-				if (valuesElement == null){
-					valuesElement = new Element("values");
-					main.addContent(valuesElement);
-				}
-				
-				valuesElement.removeChildren("value"); // Remove all old values
-				
-				String values = pipe.values;
-				if (values != null && values.length() > 0){
-					String[] valueArray = values.split("\n");
-					for (String value : valueArray){
-						Element valueElement = new Element("value");
-						valueElement.setText(value);
-						valuesElement.addContent(valueElement);
-					}
-				}
-				
-				// Update formatType (output child => format child => attribute)
-				Element output = main.getChild("output");
-				if (output == null){
-					output = new Element("output");
-					main.addContent(output);
-				}
-				
-				Element format = output.getChild("format");
-				if (format == null){
-					format = new Element("format");
-					main.addContent(format);
-				}
-				
-				format.setAttribute("type", pipe.formatType);
+		
+		if (pipe.type.equals("Modules")){
+			// Update location (attribute)
+			main.setAttribute("location", pipe.location);
+		}
+		
+		
+		if (pipe.type.equals("Modules") || pipe.type.equals("Groups")){
+			// Update uri (child)
+			Element uri = main.getChild("uri");
+			
+			// If child not present, create
+			if (uri == null){
+				uri = new Element("uri");
+				main.addContent(uri);
 			}
 			
-			
-			if (pipe.type.equals("Modules")){
-				// Update location (attribute)
-				main.setAttribute("location", pipe.location);
-			}
-			
-			
-			if (pipe.type.equals("Modules") || pipe.type.equals("Groups")){
-				// Update uri (child)
-				Element uri = main.getChild("uri");
-				
-				// If child not present, create
-				if (uri == null){
-					uri = new Element("uri");
-					main.addContent(uri);
-				}
-				
-				uri.setText(pipe.uri);
-			}
+			uri.setText(pipe.uri);
 		}
 		
 		return doc;
@@ -342,8 +340,19 @@ public class ServerUtils {
 	// Get 
 	//------------------------------------------------------------
 	
-	public static File getMonitorFile(Directory dir){
+	private static File getMonitorFile(Directory dir){
 		return new File(dir.absolutePath + File.separator + monitorRelativePath);
+	}
+	
+	public static Timestamp getMonitorFileModified(Directory dir){
+		Timestamp ret = null;
+		
+		File monitorFile = ServerUtils.getMonitorFile(dir);
+		if (monitorFile.exists()){
+			ret = new Timestamp(monitorFile.lastModified());
+		}
+		
+		return ret;
 	}
 	
 	//------------------------------------------------------------
@@ -372,8 +381,19 @@ public class ServerUtils {
 	// Get 
 	//------------------------------------------------------------
 	
-	public static File getAccessFile(Directory dir){
+	private static File getAccessFile(Directory dir){
 		return new File(dir.absolutePath + File.separator + accessRelativePath);
+	}
+	
+	public static Timestamp getAccessFileModified(Directory dir){
+		Timestamp ret = null;
+		
+		File accessFile = ServerUtils.getAccessFile(dir);
+		if (accessFile.exists()){
+			ret = new Timestamp(accessFile.lastModified());
+		}
+		
+		return ret;
 	}
 	
 	
@@ -383,6 +403,7 @@ public class ServerUtils {
 	
 	public static String readAccessFileGroup(Element parentEle){
 		String rs = "";
+		String sep = ",";
 		
 		for (Element agent: parentEle.getChildren()){
 			String agentName = agent.getValue();
@@ -394,15 +415,20 @@ public class ServerUtils {
 				agentName = GroupSyntax.groupnameToAgent(agentName);
 			}
 			
-			rs += agentName + ",";	
+			rs += agentName + sep;	
 		}
 		
-		return rs.substring(0, rs.length()-1); // get rid of last ,
+		if (!rs.equals("")){
+			// Get rid of final separator 
+			rs = rs.substring(0, rs.length() - sep.length());
+		}
+		
+		return rs;
 	}
 	
 	/**
 	 * Reads the access file for the root directory
-	 * @throws Exception 
+	 * Side Effect: Updates accessFileModified in the database
 	 */
 	public static void readAccessFile(Directory root) throws Exception {
 		File accessFile = ServerUtils.getAccessFile(root);
@@ -421,7 +447,6 @@ public class ServerUtils {
 				String type = pipe.getAttributeValue("type");
 				String name = pipe.getAttributeValue("name");
 				
-				// Get the pipefile
 				Pipefile thisPipe = Database.selectPipefileByHierarchy(root.dirId, packageName, type, name);
 				
 				if (thisPipe != null){
@@ -436,7 +461,6 @@ public class ServerUtils {
 				String name = group.getAttributeValue("name");
 				String userString = readAccessFileGroup(group);
 				
-				// Get the group
 				Group thisGroup = Database.selectGroupByName(root.dirId, name);
 				
 				if (thisGroup == null){
@@ -451,6 +475,10 @@ public class ServerUtils {
 				}
 			}
 		}
+		
+		// Update when the access file was written
+		root.accessModified = new Timestamp( accessFile.lastModified() );
+		Database.updateDirectory(root);
 	}
 	
 	//------------------------------------------------------------
@@ -478,42 +506,29 @@ public class ServerUtils {
 	
 	/**
 	 * Writes the access file for the root directory
-	 * @throws Exception 
+	 * Side Effect: Updates accessFileModified in the database
 	 */
 	public static void writeAccessFile(Directory root) throws Exception{
 		File accessFile = getAccessFile(root);
-		
-		// If the path doesn't exist return
 		if (!accessFile.exists()){
 			boolean success = accessFile.createNewFile();
 			if (!success){
 				throw new Exception ("Could not create access file");
 			}
 		}
-		
-		// Create blank document
-		Document doc = new Document();
-		
-		// Add root
-		Element access = new Element("access");
-		doc.addContent(access);
-		
-		// Add files child to root
+				
+		// <files>
 		Element filesRoot = new Element("files");
-		access.addContent(filesRoot);
 		
-		// For each pipe, add a file child to files
+		// For each pipe, add a <file> child to <files>
 		Pipefile[] pipes = Database.selectPipefiles(root.dirId);
 		
 		if (pipes != null){
 			for(Pipefile p : pipes) {
-				// OnlY add the pipefile if access is not empty
+				// Only add the pipefile if access is not empty
 				if (!p.access.equals("")){
-					// File Element
 					Element file = new Element("file");
-					
-					// Set attributes
-					file.setAttribute("type", p.type); // for now
+					file.setAttribute("type", p.type);
 					file.setAttribute("name", p.name);
 					file.setAttribute("package", p.packageName);
 					
@@ -525,26 +540,21 @@ public class ServerUtils {
 						}
 					}
 					
-					// Add to file element to files
 					filesRoot.addContent(file);
 				}
 			}
 		}
 		
-		// Add groups child to root
+		// <groups>
 		Element groupsRoot = new Element("groups");
-		access.addContent(groupsRoot);
 		
-		// For each group, add a group child to groups
+		// For each group, add a <group> child to <groups>
 		Group[] groups = Database.selectGroups(root.dirId);
 		
 		if (groups != null){
 			for(Group g : groups) {
-				// Group Element
 				Element group = new Element("group");
-				
-				// Set attribute
-				group.setAttribute("name", g.name); // for now
+				group.setAttribute("name", g.name);
 				
 				// Add agents
 				String[] agents = g.users.split(",");
@@ -554,10 +564,18 @@ public class ServerUtils {
 					}
 				}
 				
-				// Add group element to groups
 				groupsRoot.addContent(group);
 			}
 		}
+		
+		// Root Element
+		Element access = new Element("access");
+		access.addContent(filesRoot);
+		access.addContent(groupsRoot);
+		
+		// Document
+		Document doc = new Document();
+		doc.addContent(access);
 		
 		// Write document
 		writeXML(accessFile, doc);
