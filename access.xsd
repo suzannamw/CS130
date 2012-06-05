@@ -10,9 +10,7 @@
   <!-- Primary elements -->
   <xsd:complexType name="files">
     <xsd:choice>
-      <xsd:element name="module" type="module" minOccurs="0" maxOccurs="unbounded"/>
-      <xsd:element name="dataModule" type="dataModule" minOccurs="0" maxOccurs="unbounded"/>
-      <xsd:element name="moduleGroup" type="moduleGroup" minOccurs="0" maxOccurs="unbounded"/>
+      <xsd:element name="file" type="file" minOccurs="0" maxOccurs="unbounded"/>
     </xsd:choice>
   </xsd:complexType>
   
@@ -23,28 +21,13 @@
   </xsd:complexType>
   
   <!-- Files children -->
-  <xsd:complexType name="module">
+  <xsd:complexType name="file">
     <xsd:all>
       <xsd:element name="agents" type="agents"/>  
     </xsd:all>
     <xsd:attribute name="name" type="xsd:string"/>
     <xsd:attribute name="package" type="xsd:string"/>
-  </xsd:complexType>
-  
-  <xsd:complexType name="dataModule">
-    <xsd:all>
-      <xsd:element name="agents" type="agents"/>  
-    </xsd:all>
-    <xsd:attribute name="name" type="xsd:string"/>
-    <xsd:attribute name="package" type="xsd:string"/>
-  </xsd:complexType>
-  
-  <xsd:complexType name="moduleGroup">
-    <xsd:all>
-      <xsd:element name="agents" type="agents"/>  
-    </xsd:all>
-    <xsd:attribute name="name" type="xsd:string"/>
-    <xsd:attribute name="package" type="xsd:string"/>
+    <xsd:attribute name="type" type="xsd:string"/> <!-- "Data", "Modules", or "Groups" -->
   </xsd:complexType>
   
   <!-- Groups children -->

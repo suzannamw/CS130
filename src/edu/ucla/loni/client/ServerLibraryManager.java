@@ -407,7 +407,12 @@ public class ServerLibraryManager implements EntryPoint {
 		
 		backToLastPipefile.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				viewFile(pipes.get(lastPipefileId));
+				Pipefile p = pipes.get(lastPipefileId);
+				if (p != null){
+					viewFile(p);
+				} else {
+					backToLastPipefile.hide();
+				}
 			}
 		});
 		
@@ -625,12 +630,13 @@ public class ServerLibraryManager implements EntryPoint {
 
 	        public void onSuccess(Directory result) {
 	        	if (result != null){
-	        		// Set the rootDirectory
+	        		// Set and display the rootDirectory
 	        		rootDirectory = result;
-	        		// Display the rootDirectory
 	        		rootDirectoryDisplay.setContents(rootDirectory.absolutePath);
-	        		// Update the tree
+	        		
+	        		// Update the files and groups
 	        		updateFullTree();
+	        		getGroups(false);
 	        	} 
 	        	else {
 	        		// Ask for new root directory
@@ -669,6 +675,7 @@ public class ServerLibraryManager implements EntryPoint {
 
 		        public void onSuccess(Pipefile[] result) {
 		        	if (result != null) {
+		        		// Set pipes and packages
 		        		LinkedHashSet<String> packageNames = new LinkedHashSet<String>();
 		        		for (Pipefile p : result){
 			        		pipes.put(p.fileId, p);
@@ -678,8 +685,10 @@ public class ServerLibraryManager implements EntryPoint {
 		        		packages = new String[packageNames.size()];
 		        		packages = packageNames.toArray(packages);
 		        		
-		        		// After getting the files, get the groups
-		        		getGroups(false);
+		        		// Update lastPipefile
+		        		if ( !pipes.containsKey(lastPipefileId) ){
+		        			backToLastPipefile.hide();
+		        		}
 		        		
 		        		// Update the tree
 		        		sortFullTree();
@@ -733,15 +742,8 @@ public class ServerLibraryManager implements EntryPoint {
 
 		    public void onSuccess(Void result){
 		    	success("Successfully updated " + pipe.name);
-		    	
-		    	// Update the tree and back to basic instructions
-		    	if (pipe.nameUpdated || pipe.packageUpdated){
-		    		updateFullTree();
-		    		basicInstructions();
-		    	}
-		    	
-		    	// Get the groups as the user may have created an undefined group
-		    	getGroups(false);
+		    	updateFullTree();
+	    		basicInstructions();
 		    }
 		});
 	}
@@ -855,13 +857,14 @@ public class ServerLibraryManager implements EntryPoint {
 
 	        public void onSuccess(Void result) {
 	        	getGroups(true);
+	        	updateFullTree();
 	        	success("Successfully updated " + group.name + ".");
 	        }
 	    });
 	}
 	
 	/**
-	 * Makes the RPC to getGroups
+	 * Makes the RPC to removeGroups
 	 */
 	private void removeGroups(final Group[] groups){
 		SC.confirm(
@@ -879,7 +882,8 @@ public class ServerLibraryManager implements EntryPoint {
 				
 					        public void onSuccess(Void result) {
 					        	getGroups(true);
-					        	success("Successfully removed " + groups.length + " file(s).");
+					        	updateFullTree();
+					        	success("Successfully removed " + groups.length + " groups(s).");
 					        }
 						});
 					}
@@ -975,11 +979,7 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Updates Package Tree and Module Tree based on the rootDirectory
 	 *  Ensure tree is displayed
 	 */
-	private void updateFullTree(){
-		// Remove the back button to the last pipefile
-		lastPipefileId = -1;
-		updateBackToLastPipefile();
-		
+	private void updateFullTree(){	
 		// Clear the selection
 		treeGrid.deselectAllRecords();
 		updateSelected();
@@ -1865,12 +1865,12 @@ public class ServerLibraryManager implements EntryPoint {
 		message.setContents(msg);
 		message.animateShow(AnimationEffect.FADE);
 		
-		// Clear the message after 10 seconds
+		// Clear the message after 5 seconds
 	    new Timer() {
 	    	public void run() {
 	    		message.animateHide(AnimationEffect.FADE);
 	        }
-	    }.schedule(10000);
+	    }.schedule(5000);
 	}
 	
 	////////////////////////////////////////////////////////////
@@ -1881,21 +1881,12 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Clears the workarea
 	 */
 	private void clearWorkarea(){
-		updateBackToLastPipefile();
+		if (pipes.containsKey(lastPipefileId)){
+			Pipefile pipe = pipes.get(lastPipefileId);
+			backToLastPipefile.setTitle("Back to " + pipe.name);
+			backToLastPipefile.show();
+		}
 		
 		workarea.removeMembers(workarea.getMembers());
-	}
-	
-	private void updateBackToLastPipefile(){
-		if (lastPipefileId != -1){
-			if (pipes.containsKey(lastPipefileId)){
-				Pipefile pipe = pipes.get(lastPipefileId);
-				backToLastPipefile.setTitle("Back to " + pipe.name);
-				backToLastPipefile.show();
-			} else {
-				lastPipefileId = -1;
-				backToLastPipefile.hide();
-			}
-		}
 	}
 }

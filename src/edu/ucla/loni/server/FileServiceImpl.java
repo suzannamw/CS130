@@ -249,12 +249,27 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 			if (rootDir.exists() && rootDir.isDirectory()){
 				Directory root = Database.selectDirectory(rootDir.getAbsolutePath());
 				
+				Timestamp monitorModified =  ServerUtils.getMonitorFileModified(root);
+				Timestamp accessModified =  ServerUtils.getAccessFileModified(root);
+				
+				// Insert if needed
+				boolean inserted = false;
 				if (root == null){
-					Timestamp monitorModified =  ServerUtils.getMonitorFileModified(root);
-					Timestamp accessModified =  ServerUtils.getAccessFileModified(root);
-					
 					Database.insertDirectory(rootDir.getAbsolutePath(), monitorModified, accessModified);
 					root = Database.selectDirectory(rootDir.getAbsolutePath());
+					inserted = true;
+				}
+				
+				// Update the file in the database
+				if (inserted || monitorModified == null || !monitorModified.equals(root.monitorModified)){
+					root.monitorModified = monitorModified;
+					Database.updateDirectory(root);
+					updateDatabase(root);
+				}
+				
+				// Update access
+				if (accessModified != null && (inserted || !accessModified.equals(root.accessModified))){
+					ServerUtils.readAccessFile(root);
 				}
 				
 				return root;
@@ -274,25 +289,6 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public Pipefile[] getFiles(Directory root) throws Exception {
 		try {
-			
-			// If there is not monitorFile or the monitorFile has been modified, update the database
-			Timestamp monitorModified =  ServerUtils.getMonitorFileModified(root);
-
-			if (monitorModified == null || !monitorModified.equals(root.monitorModified)){
-				root.monitorModified = monitorModified;
-				Database.updateDirectory(root);
-				updateDatabase(root);
-			}
-			
-			// If the accessFile has been modified
-			Timestamp accessModified =  ServerUtils.getAccessFileModified(root);
-			
-			// If the accessFile has been modified
-			if (accessModified != null && !accessModified.equals(root.accessModified)){
-				ServerUtils.readAccessFile(root);
-			}
-				
-			// Return all the pipefiles
 			return Database.selectPipefiles(root.dirId);
 		} 
 		catch (Exception e) {
