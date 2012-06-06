@@ -743,6 +743,7 @@ public class ServerLibraryManager implements EntryPoint {
 		    public void onSuccess(Void result){
 		    	success("Successfully updated " + pipe.name);
 		    	updateFullTree();
+		    	getGroups(false);
 	    		basicInstructions();
 		    }
 		});
