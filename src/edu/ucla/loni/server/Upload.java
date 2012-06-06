@@ -2,9 +2,14 @@ package edu.ucla.loni.server;
 
 import edu.ucla.loni.shared.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileItemFactory;
@@ -96,8 +101,37 @@ public class Upload extends HttpServlet {
 							continue;
 						try {
 							InputStream in = item.getInputStream();
+					//determine if it is pipefile or zipfile
+					//if it is pipefile => feed directly to writeFile function
+					//otherwise, uncompresse it first and then one-by-one feed to writeFile
+					if( filename.endsWith(".zip") )
+					{
+						ZipInputStream zip = new ZipInputStream(in);
+						ZipEntry entry = zip.getNextEntry();
+						while(entry != null)
+						{
+							ByteArrayOutputStream baos = new ByteArrayOutputStream();
+							if( baos != null )
+							{
+								byte[] arr = new byte[4096];
+								int index = 0;
+								while((index = zip.read(arr, 0, 4096)) != -1)
+								{
+								baos.write(arr, 0, index);
+								}
+							}
+							InputStream is = new ByteArrayInputStream(baos.toByteArray());
+							writeFile(root, packageName, is);
+							entry = zip.getNextEntry();
+						}
+						zip.close();
+					}
+					else
+					{
+						writeFile(root, packageName, in);
+					
+					}
 							
-							writeFile(root, packageName, in);
 							
 							in.close();
 						} 
