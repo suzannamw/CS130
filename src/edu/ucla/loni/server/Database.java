@@ -471,6 +471,10 @@ public class Database {
 	}
 	
 	private static void insertAgentConnections(int dirId, boolean file, int id, String agentList) throws Exception {
+		if (agentList == null){
+			return;
+		}
+		
 		// Convert agentList into array of agentIds
 		String[] agentNames = agentList.split(",");
 		int[] agentIds = new int[agentNames.length];
