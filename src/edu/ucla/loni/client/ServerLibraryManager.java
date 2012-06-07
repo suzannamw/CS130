@@ -1638,20 +1638,22 @@ public class ServerLibraryManager implements EntryPoint {
 		Button update = new Button("Update");
 		update.addClickHandler(new ClickHandler(){
 			public void onClick(ClickEvent event){				
-				g.name = name.getValueAsString();
-				g.users = agents.getValueAsString();
-				boolean loop = expandGroups(g.name, g.users, agentsInfo);
+				String nameValue = name.getValueAsString();
+				String usersValue = agents.getValueAsString();
+				boolean loop = expandGroups(g.name, usersValue, agentsInfo);
 				
-				if (g.name == null || g.name.equals("")){
+				if (nameValue == null || nameValue.equals("")){
 					SC.say("Name cannot be blank"); 
 				}
-				else if (newGroup && groups.containsKey(g.name)){
+				else if (newGroup && groups.containsKey(nameValue)){
 					SC.say("Name (" + g.name + ") is already in use. Please choose another name."); 
 				}
 				else if (loop){
 					SC.say("Loop in group dependencies. Please remove this loop."); 
 				}
 				else {
+					g.name = nameValue;
+					g.users = usersValue;
 					updateGroup(g);
 				}
 			}
