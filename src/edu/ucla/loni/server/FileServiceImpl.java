@@ -247,12 +247,15 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		try {
 			File rootDir = new File(absolutePath);
 			if (rootDir.exists() && rootDir.isDirectory()){
-				Directory root = Database.selectDirectory(rootDir.getAbsolutePath());
+				Directory root = new Directory();
+				root.absolutePath = rootDir.getAbsolutePath();
 				
 				Timestamp monitorModified =  ServerUtils.getMonitorFileModified(root);
 				Timestamp accessModified =  ServerUtils.getAccessFileModified(root);
 				
 				// Insert if needed
+				root = Database.selectDirectory(rootDir.getAbsolutePath());
+				
 				boolean inserted = false;
 				if (root == null){
 					Database.insertDirectory(rootDir.getAbsolutePath(), monitorModified, accessModified);
