@@ -620,7 +620,7 @@ public class ServerLibraryManager implements EntryPoint {
 	////////////////////////////////////////////////////////////
 	
 	/**
-	 * Makes the RPC to getFiles
+	 * Makes the RPC to getDirectory
 	 */
 	private void getDirectory(final String absolutePath){
 		fileServer.getDirectory(absolutePath, new AsyncCallback<Directory>() {
@@ -635,7 +635,7 @@ public class ServerLibraryManager implements EntryPoint {
 	        		rootDirectoryDisplay.setContents(rootDirectory.absolutePath);
 	        		
 	        		// Update the files and groups
-	        		updateFullTree();
+	        		updateFullTree(null);
 	        		getGroups(false);
 	        	} 
 	        	else {
@@ -665,7 +665,7 @@ public class ServerLibraryManager implements EntryPoint {
 	/**
 	 * Makes the RPC to getFiles
 	 */
-	private void getFiles(){
+	private void getFiles(final int[] filesToSelect){
 		pipes.clear();
 		
 		fileServer.getFiles(rootDirectory, new AsyncCallback<Pipefile[]>() {
@@ -692,6 +692,8 @@ public class ServerLibraryManager implements EntryPoint {
 		        		
 		        		// Update the tree
 		        		sortFullTree();
+		        		
+		        		selectFiles(filesToSelect);
 		        	} 
 		        	else {
 		        		SC.say(rootDirectory.absolutePath + " contains no pipefiles");
@@ -742,7 +744,7 @@ public class ServerLibraryManager implements EntryPoint {
 
 		    public void onSuccess(Void result){
 		    	success("Successfully updated " + pipe.name);
-		    	updateFullTree();
+		    	updateFullTree( new int[] { pipe.fileId } );
 		    	getGroups(false);
 	    		basicInstructions();
 		    }
@@ -767,7 +769,7 @@ public class ServerLibraryManager implements EntryPoint {
 							
 							public void onSuccess(Void result){
 								success("Successfully removed " + selected.length + " file(s).");
-								updateFullTree();
+								updateFullTree(null);
 								basicInstructions();
 							}
 						});
@@ -781,14 +783,14 @@ public class ServerLibraryManager implements EntryPoint {
 	 * Makes the RPC to copyFiles
 	 */
 	private void copyFiles(final Pipefile[] selected, final String packageName){
-		fileServer.copyFiles(rootDirectory, selected, packageName, new AsyncCallback<Void>() {
+		fileServer.copyFiles(rootDirectory, selected, packageName, new AsyncCallback<int[]>() {
         	public void onFailure(Throwable caught) {
 		        error("Failed to copy file(s): " + caught.getMessage());
 		    }
 
-		    public void onSuccess(Void result){
+		    public void onSuccess(int[] result){
 		    	success("Successfully copied " + selected.length + " file(s) to " + packageName + ".");
-		    	updateFullTree();
+		    	updateFullTree(result);
 		    	basicInstructions();
 		    }
 		});
@@ -805,14 +807,14 @@ public class ServerLibraryManager implements EntryPoint {
 			new BooleanCallback(){
 				public void execute(Boolean value) {
 					if (value){
-						fileServer.moveFiles(rootDirectory, selected, packageName, new AsyncCallback<Void>() {
+						fileServer.moveFiles(rootDirectory, selected, packageName, new AsyncCallback<int[]>() {
 							public void onFailure(Throwable caught) {
 						        error("Failed to move file(s): " + caught.getMessage());
 						    }
 				
-						    public void onSuccess(Void result){
+						    public void onSuccess(int[] result){
 						    	success("Successfully moved " + selected.length + " file(s) to " + packageName + ".");
-						    	updateFullTree();
+						    	updateFullTree(result);
 						    	basicInstructions();
 						    }
 						});
@@ -858,7 +860,7 @@ public class ServerLibraryManager implements EntryPoint {
 
 	        public void onSuccess(Void result) {
 	        	getGroups(true);
-	        	updateFullTree();
+	        	updateFullTree(null);
 	        	success("Successfully updated " + group.name + ".");
 	        }
 	    });
@@ -883,7 +885,7 @@ public class ServerLibraryManager implements EntryPoint {
 				
 					        public void onSuccess(Void result) {
 					        	getGroups(true);
-					        	updateFullTree();
+					        	updateFullTree(null);
 					        	success("Successfully removed " + groups.length + " groups(s).");
 					        }
 						});
@@ -911,6 +913,32 @@ public class ServerLibraryManager implements EntryPoint {
 	////////////////////////////////////////////////////////////
 	// Private Functions - Tree
 	////////////////////////////////////////////////////////////
+	
+	private void selectFiles(int[] filesToSelect){
+		if (filesToSelect == null){
+			return;
+		}
+		
+		Record[] records = new Record[filesToSelect.length];
+		int index = 0;
+		
+		for (int fileId : filesToSelect){
+			Pipefile pipe = pipes.get(fileId);
+			String key = pipe.packageName + " > " + pipe.type + " > " + pipe.name;
+			TreeNode node = nodes.get(key);
+			
+			TreeNode typeFolder = fullTree.getParent(node);
+			TreeNode packageFolder = fullTree.getParent(typeFolder);
+			
+			fullTree.openFolder(packageFolder);
+			fullTree.openFolder(typeFolder);
+			
+			records[index] = node;
+			index++;
+		}
+		
+		treeGrid.selectRecords(records);
+	}	
 	
 	private void sortFullTree(){
 		// Clear the map
@@ -967,12 +995,16 @@ public class ServerLibraryManager implements EntryPoint {
     		}
     		
     		// Pipefile node
+    		String pipeKey = secondaryKey + " > " + p.name;
+    		
     		TreeNode pipeNode = new TreeNode(p.name);
     		pipeNode.setAttribute("fileId", p.fileId);
     		pipeNode.setAttribute("key", secondaryKey + " > " + p.name);
     		pipeNode.setAttribute("viewable", true);
     		
     		fullTree.add(pipeNode, secondaryNode);
+    		
+    		nodes.put(pipeKey, pipeNode);
 		}
 	}
 	
@@ -980,14 +1012,14 @@ public class ServerLibraryManager implements EntryPoint {
 	 *  Updates Package Tree and Module Tree based on the rootDirectory
 	 *  Ensure tree is displayed
 	 */
-	private void updateFullTree(){	
+	private void updateFullTree(int[] filesToSelect){	
 		// Clear the selection
 		treeGrid.deselectAllRecords();
 		updateSelected();
 		
 		fullTree.removeList(fullTree.getDescendants());
 		treeGrid.setData(fullTree);
-		getFiles();
+		getFiles(filesToSelect);
 	}
 	
 	/**
@@ -1780,7 +1812,7 @@ public class ServerLibraryManager implements EntryPoint {
 					error("Failed to upload files: " + event.getResults());
 				}
 				
-				updateFullTree();
+				updateFullTree(null);
 				basicInstructions();
 			}
 		});

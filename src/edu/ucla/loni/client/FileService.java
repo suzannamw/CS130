@@ -16,8 +16,8 @@ public interface FileService extends RemoteService {
 	void		updateFile(Directory root, Pipefile pipe) throws Exception;
 	
 	void		removeFiles(Directory root, Pipefile[] pipes) throws Exception;	
-	void 		copyFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception;
-	void 		moveFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception;
+	int[] 		copyFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception;
+	int[] 		moveFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception;
 	
 	Group[]		getGroups(Directory root) throws Exception;
 	void		updateGroup(Directory root, Group group) throws Exception;

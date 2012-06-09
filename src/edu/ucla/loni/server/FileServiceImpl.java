@@ -147,9 +147,10 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  Copy a file from the server to the proper package
 	 *  @param filename absolute path of the file
 	 *  @param packageName absolute path of the package
+	 *  @returns fileId of pipefile in its new location
 	 */
-	private void copyFile(Directory root, Pipefile pipe, String packageName) throws Exception {
-		copyOrMoveFile(root, pipe, packageName, true);
+	private int copyFile(Directory root, Pipefile pipe, String packageName) throws Exception {
+		return copyOrMoveFile(root, pipe, packageName, true);
 	}
 	
 	/**
@@ -157,19 +158,20 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 *  @param filename absolute path of the file = source path of file
 	 *  @param packageName is the name of the package as it appears in the Database in column PACKAGENAME
 	 *  @throws Exception 
+	 *  @returns fileId of pipefile in its new location
 	 */
-	public void moveFile(Directory root, Pipefile pipe, String packageName) throws Exception{
-		copyOrMoveFile(root, pipe, packageName, false);
+	public int moveFile(Directory root, Pipefile pipe, String packageName) throws Exception{
+		return copyOrMoveFile(root, pipe, packageName, false);
 	}
 	
-	private void copyOrMoveFile(Directory root, Pipefile pipe, String packageName, boolean copy) throws Exception{
+	private int copyOrMoveFile(Directory root, Pipefile pipe, String packageName, boolean copy) throws Exception{
 		// Source
 		String oldAbsolutePath = pipe.absolutePath;
 		File src = new File(oldAbsolutePath);
 		
 		// If the source does not exist
 		if (!src.exists()) {
-			throw new Exception("Soruce file does not exist");
+			throw new Exception("Source file does not exist");
 		}
 		
 		// Destination
@@ -230,9 +232,11 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 		
 		if (copy) {
 			Database.insertPipefile(root.dirId, pipe);
+			return Database.selectPipefileId(pipe.absolutePath);
 		} 
 		else {
 			Database.updatePipefile(pipe);
+			return pipe.fileId;
 		}
 	}
 	
@@ -378,6 +382,10 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	 */
 	public void removeFiles(Directory root, Pipefile[] pipes) throws Exception {
 		try {
+			if (pipes.length == 0){
+				return;
+			}
+			
 			// Remove each file
 			for (Pipefile pipe : pipes) {
 				removeFile(root, pipe);
@@ -395,15 +403,25 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Copies files from the server to the proper package
 	 */
-	public void copyFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception {		
+	public int[] copyFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception {		
 		try {
+			if (pipes.length == 0){
+				return null;
+			}
+			
+			int[] ret = new int[pipes.length];
+			int index = 0;
+			
 			// Copy each file
 			for (Pipefile pipe : pipes) {
-				copyFile(root, pipe, packageName);
+				ret[index] = copyFile(root, pipe, packageName);
+				index++;
 			}
 
 			// Update monitor and access files
 			updateMonitorAndAccessFile(root);
+			
+			return ret;
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -414,15 +432,25 @@ public class FileServiceImpl extends RemoteServiceServlet implements FileService
 	/**
 	 *  Moves files from the server to the proper package
 	 */
-	public void moveFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception{
+	public int[] moveFiles(Directory root, Pipefile[] pipes, String packageName) throws Exception{
 		try {
-			// Move each file
-			for (Pipefile pipe : pipes) {
-				moveFile(root, pipe, packageName);
+			if (pipes.length == 0){
+				return null;
 			}
 			
+			int[] ret = new int[pipes.length];
+			int index = 0;
+			
+			// Move each file
+			for (Pipefile pipe : pipes) {
+				ret[index] = moveFile(root, pipe, packageName);
+				index++;
+			}
+
 			// Update monitor and access files
 			updateMonitorAndAccessFile(root);
+			
+			return ret;
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
