@@ -1,0 +1,8 @@
+When displaying copied/moved files, if not showing in main tree, does not scroll to package 
+(not implemented, tried to)
+
+When uploading files, files are not selected as they are with copy/move/update 
+(not implemented)
+
+When downloading single or multiple files, if the filename has a '+' sign in the name, there is an error 
+(url not being encoded correctly, '+' is interpreted as a ' ' in url)
